@@ -3,34 +3,50 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Five Forks Fire Weather</title>
-  <link rel="stylesheet" href="assets/css/styles.css" />
-  <link rel="preconnect" href="https://tile.openstreetmap.org" />
+  <title>Five Forks Fire Weather — Demo</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    :root { --bg:#fff; --fg:#0f172a; --muted:#64748b; --panel:#f8fafc; --border:#e2e8f0; }
+    html[data-theme="dark"] { --bg:#0b1020; --fg:#e5e7eb; --muted:#94a3b8; --panel:#111827; --border:#1f2937; }
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,Segoe UI,Roboto,sans-serif}
+    .topbar{display:flex;justify-content:space-between;align-items:center;padding:.75rem 1rem;border-bottom:1px solid var(--border);background:var(--panel)}
+    .layout{display:grid;grid-template-columns:1fr 360px;min-height:calc(100vh - 120px)}
+    #map{height:calc(100vh - 160px);position:relative}
+    .panel{border-left:1px solid var(--border);background:var(--panel);padding:.75rem;overflow-y:auto}
+    .alerts{padding:.5rem 1rem} .alerts__list{list-style:none;padding:0;margin:0}
+    .alerts__list li{padding:.5rem;border:1px solid var(--border);margin-bottom:.5rem;border-radius:8px;background:var(--bg)}
+    .metrics{list-style:none;padding:0;margin:0}
+    .metrics li{padding:.5rem;border:1px solid var(--border);border-radius:8px;margin-bottom:.5rem;background:var(--bg)}
+    .title{font-weight:600} .row{display:flex;gap:.75rem;flex-wrap:wrap;color:var(--muted)}
+    .legend{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.5rem}
+    .badge{padding:.25rem .5rem;border-radius:6px;font-size:.85rem;color:#fff}
+    .badge-1{background:#2563eb}.badge-2{background:#16a34a}.badge-3{background:#eab308}.badge-4{background:#f97316}.badge-5{background:#ef4444}
+    .footer{padding:.75rem 1rem;border-top:1px solid var(--border);color:var(--muted)}
+    #themeToggle{padding:.4rem .6rem;border:1px solid var(--border);background:var(--bg);color:var(--fg);border-radius:6px;cursor:pointer}
+    @media(max-width:900px){.layout{grid-template-columns:1fr}#map{height:50vh}.panel{border-left:none;border-top:1px solid var(--border)}}
+  </style>
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">
-      <h1>Five Forks Fire Weather</h1>
-      <small>Hyper-local fire weather with authoritative overlays</small>
+    <div>
+      <h1 style="margin:0;font-size:1.1rem">Five Forks Fire Weather — Demo</h1>
+      <small style="color:var(--muted)">Hyper-local fire weather with hotspots & AQI</small>
     </div>
-    <button id="themeToggle" aria-label="Toggle dark/light">Toggle theme</button>
+    <button id="themeToggle" aria-label="Toggle theme">Toggle theme</button>
   </header>
 
-  <section id="alerts" class="alerts" role="region" aria-live="polite">
-    <div class="alerts__title">NWS Wakefield Alerts</div>
-    <ul id="alertsList" class="alerts__list"></ul>
+  <section class="alerts">
+    <div class="alerts__title" style="font-weight:600;margin-bottom:.25rem">NWS Wakefield Alerts</div>
+    <ul id="alertsList" class="alerts__list"><li>Loading alerts…</li></ul>
   </section>
 
   <main class="layout">
-    <div id="map" class="map" aria-label="Fire weather map"></div>
+    <div id="map" aria-label="Fire weather map"></div>
     <aside class="panel">
       <div class="panel__section">
         <h2>Current conditions</h2>
-        <ul id="countyList" class="metrics">
-          <!-- Injected: Amelia, Brunswick, Dinwiddie, Greensville, Nottoway, Prince George -->
-        </ul>
+        <ul id="countyList" class="metrics"></ul>
       </div>
-
       <div class="panel__section">
         <h2>Danger class</h2>
         <div class="legend">
@@ -40,19 +56,199 @@
           <span class="badge badge-4">4 Very High</span>
           <span class="badge badge-5">5 Extreme</span>
         </div>
-        <div id="dangerClass" class="danger-class">
-          <!-- Local vs DOF comparison populated here -->
-        </div>
+        <div id="dangerClass"></div>
       </div>
     </aside>
   </main>
 
   <footer class="footer">
-    <div>Data anchors: WU PWS (Amelia, Dinwiddie, Emporia, Prince George), NWS AKQ, US Drought Monitor, LANDFIRE.</div>
-    <div>AOI and markers: Five Forks FeatureCollection (local).</div>
+    <div>Keys: FIRMS=6ec6f9501dda0774853f77ee933238ed, AirNow=961AB5ED-B1D6-4B5E-8D34-8C097E374925</div>
   </footer>
 
-  <script src="assets/js/sources.js"></script>
-  <script src="assets/js/app.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script type="module">
+    // Config
+    const CONFIG = {
+      bbox: [-78.24, 36.54, -76.96, 37.50],
+      firmsKey: "6ec6f9501dda0774853f77ee933238ed",
+      firmsSource: "VIIRS",
+      firmsHours: 24,
+      airnowKey: "961AB5ED-B1D6-4B5E-8D34-8C097E374925"
+    };
+
+    // Theme toggle
+    const themeToggle = document.getElementById("themeToggle");
+    const currentTheme = localStorage.getItem("theme") || "light";
+    document.documentElement.setAttribute("data-theme", currentTheme);
+    themeToggle.addEventListener("click", () => {
+      const t = document.documentElement.getAttribute("data-theme") === "light" ? "dark" : "light";
+      document.documentElement.setAttribute("data-theme", t);
+      localStorage.setItem("theme", t);
+    });
+
+    // County data (sample obs)
+    const COUNTY_NAMES = ["Amelia","Brunswick","Dinwiddie","Greensville","Nottoway","Prince George"];
+    const OBS = {
+      "Amelia": { "temp": 66, "rh": 83, "dew": 61, "wind": 3, "gust": 7, "kbdi": 390, "dofClass": 2 },
+      "Brunswick": { "temp": 68, "rh": 80, "dew": 62, "wind": 4, "gust": 9, "kbdi": 410, "dofClass": 2 },
+      "Dinwiddie": { "temp": 67, "rh": 81, "dew": 60, "wind": 5, "gust": 8, "kbdi": 395, "dofClass": 2 },
+      "Greensville": { "temp": 70, "rh": 76, "dew": 63, "wind": 6, "gust": 10, "kbdi": 420, "dofClass": 3 },
+      "Nottoway": { "temp": 65, "rh": 78, "dew": 58, "wind": 7, "gust": 12, "kbdi": 405, "dofClass": 2 },
+      "Prince George": { "temp": 69, "rh": 79, "dew": 62, "wind": 3, "gust": 6, "kbdi": 392, "dofClass": 2 }
+    };
+    const CENTROIDS = {
+      Amelia:[37.34,-77.98], Brunswick:[36.76,-77.88], Dinwiddie:[37.05,-77.58],
+      Greensville:[36.68,-77.56], Nottoway:[37.14,-78.03], "Prince George":[37.20,-77.28]
+    };
+    const FEATURE_COLLECTION = {
+      "type":"FeatureCollection","features":[
+        {"type":"Feature","properties":{"title":"Dinwiddie"},"geometry":{"type":"Point","coordinates":[-77.60261,37.02153]}},
+        {"type":"Feature","properties":{"title":"Amelia"},"geometry":{"type":"Point","coordinates":[-77.99537,37.32646]}},
+        {"type":"Feature","properties":{"title":"Nottoway"},"geometry":{"type":"Point","coordinates":[-78.03382,37.14824]}},
+        {"type":"Feature","properties":{"title":"Brunswick"},"geometry":{"type":"Point","coordinates":[-77.85049,36.78112]}},
+        {"type":"Feature","properties":{"title":"Greensville"},"geometry":{"type":"Point","coordinates":[-77.56347,36.6413]}},
+        {"type":"Feature","properties":{"title":"Prince George"},"geometry":{"type":"Point","coordinates":[-77.18101,37.1881]}},
+        {"type":"Feature","properties":{},"geometry":{"type":"Polygon","coordinates":[[[-78.2350117578125,37.363789898359414],[-78.23089188476563,37.29062448283949],[-78.240504921875,37.11755644626926],[-78.21578568359375,37.08250638697882],[-78.15948075195313,37.04634403220737],[-78.07845658203125,37.00797118486934],[-78.00567215820313,37.020830045694964],[-78.0482441796875,36.54218923323913],[-77.28744095703125,36.54217934004624],[-77.41927689453125,36.697591947028855],[-77.4549824609375,36.74712573578124],[-77.46322220703125,36.86427710321731],[-77.54012650390625,36.859882122283764],[-77.6087910546875,36.880756030323596],[-77.15423172851563,37.115021710981814],[-77.07320755859375,37.17741654078484],[-76.96471756835938,37.247412528316616],[-76.99218338867188,37.299453009740276],[-77.0210225,37.306007271306434],[-77.06908768554688,37.26776602706855],[-77.08282059570313,37.27541583062041],[-77.09106034179688,37.31365318781136],[-77.12813919921875,37.303822580920595],[-77.23662918945313,37.31692977113898],[-77.35473221679688,37.23606570446547],[-77.32726639648438,37.19231923958888],[-77.34374588867188,37.16824787325909],[-77.39181107421875,37.170436496249174],[-77.42339676757813,37.16277603847045],[-77.43163651367188,37.185755082241165],[-77.45635575195313,37.18794319808966],[-77.44536942382813,37.21638293433666],[-77.515407265625,37.21857016247888],[-77.5978047265625,37.25792942330379],[-77.64998978515625,37.26667313454041],[-77.66646927734375,37.29320183064708],[-77.71041458984375,37.303033825915705],[-77.7680928125,37.284461200413624],[-77.79830521484375,37.328154196565244],[-77.84774369140625,37.35435780585329],[-77.87520951171875,37.38709945830021],[-77.86422318359375,37.45318674511003],[-77.92876786132813,37.48261602071299],[-78.00155228515625,37.49787108359377],[-78.086696328125,37.45588769581372],[-78.13888138671875,37.46024816203661],[-78.18969315429688,37.446075717235935],[-78.22539872070313,37.40136041928257],[-78.23913163085938,37.382812099276194],[-78.2350117578125,37.362076193229214],[-78.2350117578125,37.363789898359414]]]}
+        }
+      ]}
+    };
+
+    // Map
+    const map = L.map("map").setView([37.19,-77.64], 8);
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution:"&copy; OpenStreetMap contributors" }).addTo(map);
+
+    // AOI + markers
+    L.geoJSON(FEATURE_COLLECTION, {
+      pointToLayer: (f, latlng) => L.circleMarker(latlng, {radius:6,color:"#A200FF"}).bindPopup(`<strong>${f.properties.title}</strong>`),
+      style: () => ({color:"#ff0000",weight:2,fillOpacity:.1})
+    }).addTo(map);
+
+    // FIRMS hotspots status
+    const status = document.createElement("div");
+    status.className = "badge badge-3";
+    status.style.cssText = "position:absolute;bottom:10px;left:10px;z-index:999";
+    status.textContent = "Loading hotspots…";
+    document.getElementById("map").appendChild(status);
+
+    // FIRMS fetch (demo URL pattern; adjust to your endpoint variant if needed)
+    async function addHotspots() {
+      try {
+        const [minLng,minLat,maxLng,maxLat] = CONFIG.bbox;
+        const source = CONFIG.firmsSource.toUpperCase()==="MODIS" ? "modis-c6.1" : "viirs-snpp-npp";
+        const url = `https://firms.modaps.eosdis.nasa.gov/api/${source}/geojson/${CONFIG.firmsKey}/?bbox=${minLng},${minLat},${maxLng},${maxLat}&hours=${CONFIG.firmsHours}`;
+        const r = await fetch(url);
+        if (!r.ok) throw new Error(`FIRMS ${r.status}`);
+        const geo = await r.json();
+        let count = 0;
+        L.geoJSON(geo, {
+          pointToLayer: (pt, latlng) => {
+            count++;
+            return L.circleMarker(latlng, {radius:3,color:"#ef4444",fillColor:"#ef4444",fillOpacity:.85})
+              .bindPopup(`<strong>Thermal hotspot</strong><br>Confidence: ${pt.properties?.confidence ?? "n/a"}<br>Time: ${pt.properties?.acq_datetime ?? pt.properties?.acq_date ?? ""}`);
+          }
+        }).addTo(map);
+        status.className = count ? "badge badge-4" : "badge badge-2";
+        status.textContent = count ? `Hotspots: ${count}` : "No hotspots in AOI";
+      } catch(e) {
+        status.className = "badge badge-1";
+        status.textContent = "Hotspots unavailable";
+      }
+    }
+    addHotspots();
+
+    // Current conditions list
+    const countyListEl = document.getElementById("countyList");
+    function renderCountyRow(name, obs) {
+      const li = document.createElement("li");
+      li.innerHTML = `<div class="title">${name}</div>
+        <div class="row">
+          <span>Temp: ${obs?.temp ?? "--"}°F</span>
+          <span>RH: ${obs?.rh ?? "--"}%</span>
+          <span>Dew: ${obs?.dew ?? "--"}°F</span>
+          <span>Wind: ${obs?.wind ?? "--"} mph</span>
+          <span>Gust: ${obs?.gust ?? "--"} mph</span>
+        </div>`;
+      countyListEl.appendChild(li);
+    }
+    COUNTY_NAMES.forEach(n => renderCountyRow(n, OBS[n]));
+
+    // AirNow PM2.5 chip
+    async function fetchAirNow(lat,lng){
+      const url = `https://www.airnowapi.org/aq/observation/latLong/current/?format=application/json&latitude=${lat}&longitude=${lng}&distance=25&API_KEY=${CONFIG.airnowKey}`;
+      try {
+        const r = await fetch(url); if(!r.ok) throw new Error(r.status);
+        const data = await r.json();
+        const pm25 = data.find(d => (d.Parameter||"").toUpperCase()==="PM2.5") || data[0];
+        if(!pm25) return null;
+        return { aqi: pm25.AQI, cat: pm25.Category?.Name||"Unknown" };
+      } catch { return null; }
+    }
+    async function attachAQI(){
+      const items = countyListEl.querySelectorAll("li");
+      for(const li of items){
+        const name = li.querySelector(".title").textContent.trim();
+        const c = CENTROIDS[name]; if(!c) continue;
+        const aqi = await fetchAirNow(c[0],c[1]);
+        const chip = document.createElement("span");
+        chip.style.marginLeft = ".5rem";
+        chip.textContent = aqi ? `AQI (PM2.5): ${aqi.aqi} — ${aqi.cat}` : "AQI (PM2.5): --";
+        li.querySelector(".row").appendChild(chip);
+      }
+    }
+    attachAQI();
+
+    // Danger class
+    function computeLocalClass(obs){
+      if(!obs) return 1;
+      const rh=+obs.rh, wind=+obs.wind, temp=+obs.temp, kbdi=+(obs.kbdi||0);
+      let cls=1;
+      if (rh<=35 || wind>=10 || temp>=80) cls=2;
+      if (rh<=30 || wind>=15 || temp>=86) cls=3;
+      if (rh<=25 || wind>=18 || temp>=90) cls=4;
+      if (rh<=20 || wind>=25 || temp>=95) cls=5;
+      if (rh<=30 && wind>=15 && temp>86) cls=Math.min(5,cls+1);
+      if (kbdi>=600) cls=Math.min(5, cls+2);
+      else if (kbdi>=400) cls=Math.min(5, cls+1);
+      return cls;
+    }
+    function renderDanger(){
+      const root=document.getElementById("dangerClass");
+      COUNTY_NAMES.forEach(n=>{
+        const obs=OBS[n]; const local=computeLocalClass(obs); const dof=obs?.dofClass;
+        const div=document.createElement("div"); div.className="metrics";
+        div.innerHTML = `<div class="title">${n}</div>
+          <div class="row">
+            <span>Local: <span class="badge badge-${local}">${local}</span></span>
+            <span>DOF: ${dof ? `<span class="badge badge-${dof}">${dof}</span>` : "--"}</span>
+          </div>`;
+        root.appendChild(div);
+      });
+    }
+    renderDanger();
+
+    // Alerts (simple VA filter with fallback)
+    const alertsListEl = document.getElementById("alertsList");
+    async function fetchAlerts(){
+      try {
+        const r=await fetch("https://api.weather.gov/alerts/active?area=VA",{headers:{Accept:"application/geo+json"}});
+        const data=await r.json();
+        const items=(data.features||[]).filter(f=>{
+          const area=(f.properties?.areaDesc||"").toUpperCase();
+          return COUNTY_NAMES.some(n=>area.includes(n.toUpperCase()));
+        });
+        alertsListEl.innerHTML="";
+        (items.length?items.slice(0,6):[]).forEach(a=>{
+          const li=document.createElement("li");
+          li.innerHTML = `<div><strong>${a.properties.event}</strong> — ${a.properties.severity||"N/A"}</div>
+            <div class="muted">${a.properties.headline||""}</div>`;
+          alertsListEl.appendChild(li);
+        });
+        if(!items.length) alertsListEl.innerHTML="<li>No active AKQ alerts for listed counties.</li>";
+      } catch {
+        alertsListEl.innerHTML="<li>Alerts unavailable. Check NWS AKQ.</li>";
+      }
+    }
+    fetchAlerts();
+  </script>
 </body>
 </html>
