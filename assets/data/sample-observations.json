@@ -1,0 +1,8 @@
+{
+  "Amelia": { "temp": 63, "rh": 90, "dew": 60, "wind": 6, "gust": 7, "kbdi": 380, "dofClass": 2 },
+  "Brunswick": { "temp": 66, "rh": 82, "dew": 60, "wind": 5, "gust": 8, "kbdi": 410, "dofClass": 2 },
+  "Dinwiddie": { "temp": 62, "rh": 81, "dew": 56, "wind": 0, "gust": 0, "kbdi": 395, "dofClass": 2 },
+  "Greensville": { "temp": 75, "rh": 75, "dew": 66, "wind": 5, "gust": 6, "kbdi": 420, "dofClass": 3 },
+  "Nottoway": { "temp": 64, "rh": 78, "dew": 56, "wind": 7, "gust": 12, "kbdi": 405, "dofClass": 2 },
+  "Prince George": { "temp": 66, "rh": 83, "dew": 61, "wind": 1, "gust": 1, "kbdi": 390, "dofClass": 2 }
+}
