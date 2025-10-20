@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Five Forks Fire Weather</title>
+  <link rel="stylesheet" href="assets/css/styles.css" />
+  <link rel="preconnect" href="https://tile.openstreetmap.org" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <h1>Five Forks Fire Weather</h1>
+      <small>Hyper-local fire weather with authoritative overlays</small>
+    </div>
+    <button id="themeToggle" aria-label="Toggle dark/light">Toggle theme</button>
+  </header>
+
+  <section id="alerts" class="alerts" role="region" aria-live="polite">
+    <div class="alerts__title">NWS Wakefield Alerts</div>
+    <ul id="alertsList" class="alerts__list"></ul>
+  </section>
+
+  <main class="layout">
+    <div id="map" class="map" aria-label="Fire weather map"></div>
+    <aside class="panel">
+      <div class="panel__section">
+        <h2>Current conditions</h2>
+        <ul id="countyList" class="metrics">
+          <!-- Injected: Amelia, Brunswick, Dinwiddie, Greensville, Nottoway, Prince George -->
+        </ul>
+      </div>
+
+      <div class="panel__section">
+        <h2>Danger class</h2>
+        <div class="legend">
+          <span class="badge badge-1">1 Low</span>
+          <span class="badge badge-2">2 Moderate</span>
+          <span class="badge badge-3">3 High</span>
+          <span class="badge badge-4">4 Very High</span>
+          <span class="badge badge-5">5 Extreme</span>
+        </div>
+        <div id="dangerClass" class="danger-class">
+          <!-- Local vs DOF comparison populated here -->
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <footer class="footer">
+    <div>Data anchors: WU PWS (Amelia, Dinwiddie, Emporia, Prince George), NWS AKQ, US Drought Monitor, LANDFIRE.</div>
+    <div>AOI and markers: Five Forks FeatureCollection (local).</div>
+  </footer>
+
+  <script src="assets/js/sources.js"></script>
+  <script src="assets/js/app.js"></script>
+</body>
+</html>
