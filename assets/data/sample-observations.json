@@ -1,6 +1,30 @@
-{
-  "Amelia": { "temp": 77, "rh": 16, "dew": 32, "wind": 5, "gust": 8, "kbdi": 390, "dofClass": 3 },
-  "Brunswick": { "temp": 79, "rh": 19, "dew": 31, "wind": 8, "gust": 13, "kbdi": 410, "dofClass": 3 },
-  "Dinwiddie": { "temp": 77, "rh": 19, "dew": 32, "wind": 5, "gust": 8, "kbdi": 395, "dofClass": 3 },
-  "Greensville": { "temp": 79, "rh": 15, "dew": 31, "wind": 8, "gust": 13, "kbdi": 420, "dofClass": 3 },
-  "Nottoway": { "temp": 76, "rh": 20, "dew"
+[
+  {
+    "location": "Five Forks",
+    "temp": 88,
+    "rh": 22,
+    "wind": 14,
+    "danger_class": "High"
+  },
+  {
+    "location": "Brush Mountain",
+    "temp": 91,
+    "rh": 18,
+    "wind": 17,
+    "danger_class": "Extreme"
+  },
+  {
+    "location": "Craig Creek",
+    "temp": 79,
+    "rh": 35,
+    "wind": 9,
+    "danger_class": "Moderate"
+  },
+  {
+    "location": "Bent Mountain",
+    "temp": 72,
+    "rh": 42,
+    "wind": 6,
+    "danger_class": "Low"
+  }
+]
