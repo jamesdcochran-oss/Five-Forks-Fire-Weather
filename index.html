@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Five Forks Fire Weather</title>
+<meta name="description" content="Live fire-weather snapshot for the Five Forks District (VA): NWS alerts, observations, danger class, and AQI.">
+<link rel="preconnect" href="https://api.weather.gov">
+<style>
+:root{ color-scheme: light dark; --bg:#0b0b0c; --panel:#111; --fg:#eaeaea; --sub:#9aa0a6; --chip:#1b1b1c; --ok:#1e8e3e; --warn:#fbbc05; --high:#ea4335; --link:#8ab4f8 }
+*{ box-sizing:border-box }
+html,body{ height:100% }
+body{ margin:0; background:var(--bg); color:var(--fg); font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Arial }
+header,main,footer{ max-width:980px; margin:0 auto; padding:16px }
+header{ display:flex; align-items:center; gap:12px; justify-content:space-between }
+h1{ margin:0 0 2px 0; font-size:1.25rem }
+.controls{ display:flex; gap:8px; flex-wrap:wrap }
+button, .chip{ border:1px solid #2a2a2a; background:#161616; color:var(--fg); padding:8px 12px; border-radius:10px; cursor:pointer }
+a{ color:var(--link); text-decoration:none } a:hover{text-decoration:underline}
+.panel{ background:var(--panel); padding:16px; border-radius:16px; box-shadow:0 4px 16px rgba(0,0,0,.25); margin:16px 0 }
+.kv{ display:flex; justify-content:space-between; gap:8px; border-bottom:1px solid #222; padding:8px 0 }
+.kv span{ color:var(--sub) }
+.badge{ display:inline-block; padding:8px 12px; border-radius:999px; background:var(--chip) }
+.badge.low{ background:#163d1f } .badge.mod{ background:#2a2a16 } .badge.high{ background:#3a1a16 } .badge.vhigh{ background:#4a1414 }
+.note{ color:var(--sub); font-size:.9rem }
+ul{ margin:8px 0 0 18px }
+li{ margin:6px 0 }
+.grid{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px }
+@media (max-width:760px){ .grid{ grid-template-columns:1fr } }
+code.small{ font-family: ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.8rem; color:var(--sub) }
+footer{ color:var(--sub); font-size:.9rem }
+hr.sep{ border:0; border-top:1px solid #222; margin:12px 0 }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Five Forks Fire Weather</h1>
+    <div class="note">Live snapshot for the Five Forks District (VA)</div>
+  </div>
+  <div class="controls">
+    <button id="btnRefresh" title="Refresh data">Refresh</button>
+    <button id="btnDemo" title="Toggle demo data">Demo: Off</button>
+  </div>
+</header>
+
+<main>
+  <section class="panel">
+    <h2>NWS Alerts (local zone)</h2>
+    <ul id="alerts"><li>Loading alerts…</li></ul>
+    <div class="note">Source: <code class="small">api.weather.gov</code>. Shows up to 6 active alerts for your local forecast zone.</div>
+  </section>
+
+  <section class="panel grid">
+    <div>
+      <h2>Current Conditions (nearest station)</h2>
+      <div class="kv"><span>Temperature</span><b id="temp">—</b></div>
+      <div class="kv"><span>Wind</span><b id="wind">—</b></div>
+      <div class="kv"><span>Relative Humidity</span><b id="rh">—</b></div>
+      <div class="kv"><span>Observed</span><b id="obsTime">—</b></div>
+      <div class="note">Nearest NWS station auto-selected from your gridpoint.</div>
+    </div>
+    <div>
+      <h2>Local Danger Class</h2>
+      <p id="danger" class="badge">—</p>
+      <hr class="sep">
+      <div class="note" id="dangerMeta">Using min RH (next ~12 periods) & max wind (mph). Heuristic 30/30/30 applied.</div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Air Quality (AQI)</h2>
+    <iframe
+      title="AirNow AQI"
+      width="320" height="210" style="border:0; max-width:100%"
+      src="https://widget.airnow.gov/aq-dial-widget/?z=23847&n=Five%20Forks%20District"></iframe>
+    <div><a href="https://www.airnow.gov/" target="_blank" rel="noopener">More at AirNow</a></div>
+    <div class="note">No API key required.</div>
+  </section>
+</main>
+
+<footer>
+  Data: NWS & AirNow • Built for the Five Forks District • No secrets in the browser.
+</footer>
+
+<script type="module">
+/* ---------- CONFIG ---------- */
+const CENTER = { lat: 37.185, lon: -77.65 };      // Five Forks area centerpoint
+const H = { 'Accept': 'application/ld+json' };     // NWS prefers this header
+const MAX_ALERTS = 6;
+
+/* ---------- DEMO DATA (for offline/backup) ---------- */
+const DEMO = {
+  alerts: {
+    features: [{
+      properties: {
+        event: "Special Weather Statement",
+        severity: "Minor",
+        headline: "Elevated fire danger possible this afternoon.",
+        effective: new Date().toISOString(),
+        sent: new Date().toISOString()
+      }
+    }]
+  },
+  obs: {
+    properties: {
+      temperature: { value: (18.5) }, // °C
+      windSpeed: { value: 6 },        // m/s
+      windGust: { value: 10 },        // m/s
+      relativeHumidity: { value: 32 },
+      timestamp: new Date().toISOString()
+    }
+  },
+  grid: {
+    properties: {
+      relativeHumidity: { values: Array.from({length:12}, (_,i)=>({ value: 28 + (i%3)*2 })) },
+      windSpeed:        { values: Array.from({length:12}, (_,i)=>({ value: 6 + (i%4) })) } // m/s
+    }
+  }
+};
+
+/* ---------- DOM helpers ---------- */
+const $ = (id) => document.getElementById(id);
+const log = (...args) => console.log('[FFFW]', ...args);
+
+/* ---------- UI state ---------- */
+let useDemo = false;
+$('btnDemo').addEventListener('click', () => {
+  useDemo = !useDemo;
+  $('btnDemo').textContent = `Demo: ${useDemo ? 'On' : 'Off'}`;
+  refreshAll();
+});
+$('btnRefresh').addEventListener('click', refreshAll);
+
+/* ---------- Live fetchers ---------- */
+async function getPoint() {
+  const url = `https://api.weather.gov/points/${CENTER.lat},${CENTER.lon}?_=${Date.now()}`;
+  const r = await fetch(url, { headers: H });
+  if (!r.ok) throw new Error(`points ${r.status}`);
+  return r.json();
+}
+
+async function fetchAlertsLive() {
+  const pt = await getPoint();
+  const zone = (pt?.properties?.forecastZone || '').split('/').pop();
+  if (!zone) throw new Error('no forecast zone detected');
+  const url = `https://api.weather.gov/alerts/active?zone=${zone}&_=${Date.now()}`;
+  const r = await fetch(url, { headers: H });
+  if (!r.ok) throw new Error(`alerts ${r.status}`);
+  return r.json();
+}
+
+async function fetchObsLive() {
+  const pt = await getPoint();
+  const stationsUrl = pt?.properties?.observationStations;
+  if (!stationsUrl) throw new Error('no observationStations url');
+  const s = await fetch(`${stationsUrl}?_=${Date.now()}`, { headers: H }).then(r=>r.json());
+  const id = s.features?.[0]?.properties?.stationIdentifier;
+  if (!id) throw new Error('no stationIdentifier');
+  const url = `https://api.weather.gov/stations/${id}/observations/latest?_=${Date.now()}`;
+  const r = await fetch(url, { headers: H });
+  if (!r.ok) throw new Error(`obs ${r.status}`);
+  return r.json();
+}
+
+async function fetchGridLive() {
+  const pt = await getPoint();
+  const grid = pt?.properties?.forecastGridData;
+  if (!grid) throw new Error('no forecastGridData url');
+  const r = await fetch(`${grid}?_=${Date.now()}`, { headers: H });
+  if (!r.ok) throw new Error(`grid ${r.status}`);
+  return r.json();
+}
+
+/* ---------- Renderers ---------- */
+function renderAlerts(data) {
+  const list = data?.features?.slice(0, MAX_ALERTS) || [];
+  const ul = $('alerts');
+  ul.innerHTML = '';
+  if (!list.length) {
+    ul.innerHTML = '<li>No active alerts.</li>';
+    return;
+  }
+  for (const f of list) {
+    const p = f.properties || {};
+    const when = new Date(p.effective || p.sent || Date.now()).toLocaleString();
+    const li = document.createElement('li');
+    li.innerHTML = `<b>${p.event || 'Alert'}</b> — ${p.severity || '—'}<br><small>${p.headline || ''}</small><br><small>${when}</small>`;
+    ul.appendChild(li);
+  }
+}
+
+function renderObs(o) {
+  const p = o?.properties || {};
+  const c2f = (c)=> (c*9/5 + 32);
+  $('temp').textContent = p.temperature?.value != null ? `${c2f(p.temperature.value).toFixed(0)} °F` : '—';
+  const ws = p.windSpeed?.value, wg = p.windGust?.value;
+  $('wind').textContent = ws != null ? `${(ws*2.23694).toFixed(0)} mph${wg!=null?` (g ${(wg*2.23694).toFixed(0)})`:''}` : '—';
+  $('rh').textContent = p.relativeHumidity?.value != null ? `${p.relativeHumidity.value.toFixed(0)} %` : '—';
+  $('obsTime').textContent = p.timestamp ? new Date(p.timestamp).toLocaleString() : '—';
+}
+
+function renderDanger(g) {
+  const rhVals = (g?.properties?.relativeHumidity?.values || []).slice(0, 12).map(v => v.value).filter(v => v!=null);
+  const wVals  = (g?.properties?.windSpeed?.values        || []).slice(0, 12).map(v => v.value).filter(v => v!=null);
+  const minRH  = rhVals.length ? Math.min(...rhVals) : null;
+  const maxW   = wVals.length  ? Math.max(...wVals.map(v => v*2.23694)) : null; // m/s -> mph
+
+  let clsTxt = '—', cls = '';
+  if (minRH != null && maxW != null) {
+    if (minRH <= 20 || (minRH <= 30 && maxW >= 30)) { clsTxt = 'Very High (4)'; cls = 'vhigh'; }
+    else if (minRH <= 30 && maxW >= 15)            { clsTxt = 'High (3)';      cls = 'high'; }
+    else if (minRH <= 40 && maxW >= 10)            { clsTxt = 'Moderate (2)';  cls = 'mod';  }
+    else                                           { clsTxt = 'Low (1)';       cls = 'low';  }
+    $('danger').textContent = `${clsTxt} — minRH ${minRH.toFixed(0)}% / max wind ${maxW.toFixed(0)} mph`;
+  } else {
+    $('danger').textContent = '—';
+  }
+  $('danger').className = `badge ${cls}`;
+  $('dangerMeta').textContent = `Heuristic from NWS grid. minRH=${minRH ?? '—'}%, maxWind=${maxW ? maxW.toFixed(0) : '—'} mph.`;
+}
+
+/* ---------- Orchestration ---------- */
+async function refreshAll() {
+  log('refresh', { useDemo });
+
+  // Alerts
+  try {
+    const alerts = useDemo ? DEMO.alerts : await fetchAlertsLive();
+    renderAlerts(alerts);
+  } catch (e) {
+    console.error('alerts failed → demo', e);
+    renderAlerts(DEMO.alerts);
+  }
+
+  // Observations
+  try {
+    const obs = useDemo ? DEMO.obs : await fetchObsLive();
+    renderObs(obs);
+  } catch (e) {
+    console.error('obs failed → demo', e);
+    renderObs(DEMO.obs);
+  }
+
+  // Grid/Danger
+  try {
+    const grid = useDemo ? DEMO.grid : await fetchGridLive();
+    renderDanger(grid);
+  } catch (e) {
+    console.error('grid failed → demo', e);
+    renderDanger(DEMO.grid);
+  }
+}
+
+refreshAll();
+setInterval(refreshAll, 15 * 60 * 1000);
+</script>
+</body>
+</html>
