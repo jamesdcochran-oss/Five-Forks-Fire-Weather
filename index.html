@@ -4,132 +4,304 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Five Forks Fire Weather</title>
+<meta name="description" content="Hyper-local fire weather with authoritative overlays for the Five Forks District, VA.">
 <link rel="preconnect" href="https://api.weather.gov">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <style>
-:root{color-scheme:light dark;--bg:#0b0b0c;--fg:#eaeaea;--sub:#9aa0a6;--chip:#1b1b1c}
+:root{
+  color-scheme: light dark;
+  --bg:#0b0c10; --panel:#121319; --fg:#e9edf1; --sub:#94a3b8;
+  --chip:#1f2430; --chip2:#263040; --accent:#7dd3fc; --accent2:#a78bfa;
+  --ok:#22c55e; --warn:#f59e0b; --high:#ef4444; --muted:#222833
+}
+*{box-sizing:border-box} html,body{height:100%}
 body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial}
-header,main,footer{max-width:960px;margin:0 auto;padding:16px}
-section{background:#111;padding:16px;border-radius:16px;box-shadow:0 4px 16px rgba(0,0,0,.25);margin:16px 0}
-.kv{display:flex;justify-content:space-between;border-bottom:1px solid #222;padding:8px 0}
-.kv span{color:var(--sub)} .note{color:var(--sub)} .badge{padding:8px 12px;border-radius:999px;background:var(--chip);display:inline-block}
-a{color:#8ab4f8;text-decoration:none} a:hover{text-decoration:underline}
-#map{height:300px;border-radius:12px;margin-top:8px}
-button{border:1px solid #333;background:#161616;color:var(--fg);padding:8px 12px;border-radius:10px;cursor:pointer}
+header,main,footer{max-width:1200px;margin:0 auto;padding:16px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+h1{margin:0 0 2px 0;font-size:1.25rem} .sub{color:var(--sub);font-size:.95rem}
+.controls{display:flex;gap:8px;flex-wrap:wrap}
+button{border:1px solid #2b3140;background:#161a24;color:var(--fg);padding:8px 12px;border-radius:10px;cursor:pointer}
+button:active{transform:translateY(1px)} a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+.panel{background:var(--panel);padding:16px;border-radius:16px;box-shadow:0 6px 20px rgba(0,0,0,.35);margin:16px 0}
+.grid{display:grid;grid-template-columns:2fr 1.15fr;gap:16px}
+@media (max-width:980px){ .grid{grid-template-columns:1fr} }
+.cardgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+@media (max-width:680px){ .cardgrid{grid-template-columns:1fr} }
+.card{background:var(--chip);border:1px solid var(--muted);border-radius:12px;padding:12px}
+.card h3{margin:0 0 6px 0;font-size:1rem}
+.kv{display:flex;justify-content:space-between;gap:8px;border-top:1px dashed #2c3342;padding:6px 0}
+.kv:first-of-type{border-top:0}
+.kv span{color:var(--sub)} .note{color:var(--sub);font-size:.9rem}
+.badge{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:var(--chip2);border:1px solid #2b3140;font-weight:600}
+.badge.b1{background:#163d1f} .badge.b2{background:#2a2a16} .badge.b3{background:#3a1a16} .badge.b4{background:#4a1414}
+.badge .dot{width:8px;height:8px;border-radius:50%}
+.b1 .dot{background:#22c55e}.b2 .dot{background:#eab308}.b3 .dot{background:#f97316}.b4 .dot{background:#ef4444}
+.tbl{width:100%;border-collapse:separate;border-spacing:0 8px}
+.tbl th{color:var(--sub);font-weight:600;text-align:left;padding:6px 8px}
+.tbl td{background:var(--chip);border:1px solid var(--muted);padding:8px;border-radius:10px}
+.tbl td.num{width:64px;text-align:center}
+#map{height:420px;border-radius:14px;border:1px solid var(--muted)}
+.alert{background:#111827;border:1px solid #243041;border-radius:12px;padding:12px}
+.alert h3{margin:0 0 4px 0}
+.tag{display:inline-block;padding:3px 8px;border-radius:999px;background:#1f2937;color:#cbd5e1;font-size:.8rem;border:1px solid #2b3342}
+.rightcol{display:flex;flex-direction:column;gap:16px}
+.small{font-size:.86rem;color:var(--sub)}
 </style>
 </head>
 <body>
 <header>
-  <h1>Five Forks Fire Weather</h1>
-  <button id="refreshBtn">Refresh</button>
+  <div>
+    <h1>Five Forks Fire Weather</h1>
+    <div class="sub">Hyper-local fire weather with authoritative overlays</div>
+  </div>
+  <div class="controls">
+    <button id="btnTheme">Toggle theme</button>
+    <button id="btnRefresh">Refresh</button>
+    <button id="btnDemo">Demo: Off</button>
+  </div>
 </header>
 
-<main>
-  <section>
-    <h2>NWS Alerts</h2>
-    <ul id="alerts"><li>Loading...</li></ul>
-  </section>
+<main class="grid">
+  <!-- LEFT: Alerts + Map -->
+  <div>
+    <section class="panel">
+      <h2>NWS Wakefield Alerts</h2>
+      <div id="alerts" class="alert"><div class="small">Loading alerts…</div></div>
+      <div class="small">Source: api.weather.gov</div>
+    </section>
 
-  <section>
-    <h2>Current Conditions</h2>
-    <div class="kv"><span>Temperature</span><b id="temp">—</b></div>
-    <div class="kv"><span>Wind</span><b id="wind">—</b></div>
-    <div class="kv"><span>Relative Humidity</span><b id="rh">—</b></div>
-    <div class="kv"><span>Observed</span><b id="obsTime">—</b></div>
-  </section>
+    <section class="panel">
+      <h2>Five Forks Map</h2>
+      <div id="map"></div>
+      <div class="small" style="margin-top:6px">Layers: Counties (red boundary), local hotspots (orange/blue markers). Tiles: OSM.</div>
+    </section>
+  </div>
 
-  <section>
-    <h2>Local Danger Class</h2>
-    <p id="danger" class="badge">—</p>
-    <small class="note" id="dangerMeta"></small>
-  </section>
+  <!-- RIGHT: Per-county conditions + Danger table -->
+  <div class="rightcol">
+    <section class="panel">
+      <h2>Current conditions</h2>
+      <div id="countyCards" class="cardgrid"><div class="note">Loading…</div></div>
+    </section>
 
-  <section>
-    <h2>Fire Hotspots (Local GeoJSON)</h2>
-    <div id="map"></div>
-    <small class="note">Source: assets/data/hotspots.geojson</small>
-  </section>
-
-  <section>
-    <h2>Air Quality</h2>
-    <iframe title="AirNow AQI" width="320" height="210" style="border:0;max-width:100%"
-      src="https://widget.airnow.gov/aq-dial-widget/?z=23847&n=Five%20Forks%20District"></iframe>
-  </section>
+    <section class="panel">
+      <h2>Danger class</h2>
+      <table class="tbl" id="dangerTable">
+        <thead>
+          <tr><th>County</th><th class="num">Local</th><th class="num">DOF</th></tr>
+        </thead>
+        <tbody id="dangerBody">
+          <tr><td class="note" colspan="3">Computing from NWS forecast (min RH & 20-ft wind proxy)…</td></tr>
+        </tbody>
+      </table>
+      <div class="small">Local = computed from NWS grid (next ~12 periods). DOF = official class (add later if you want me to pull VDOF page).</div>
+    </section>
+  </div>
 </main>
 
-<footer><small>Built for Five Forks District • NWS + AirNow + Local GeoJSON</small></footer>
+<footer class="small">
+  © Five Forks District • Data: NWS & OSM • No API keys in browser • <span id="stamp"></span>
+</footer>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
+/* ----------------------- CONFIG ----------------------- */
+// Center of area (used to pick AKQ zone; map starts here)
 const CENTER = { lat: 37.185, lon: -77.65 };
-const HEADERS = { "Accept": "application/ld+json" };
-const $ = id => document.getElementById(id);
 
-async function getPoint() {
-  const r = await fetch(`https://api.weather.gov/points/${CENTER.lat},${CENTER.lon}`, { headers: HEADERS });
-  if (!r.ok) throw new Error("points " + r.status);
+// Your counties (display names, seats for AQI links, centerpoints)
+const COUNTIES = [
+  { key:"Amelia",       lat:37.34, lon:-77.98, aqi:"23002" }, // Amelia Court House
+  { key:"Dinwiddie",    lat:37.08, lon:-77.58, aqi:"23841" },
+  { key:"Greensville",  lat:36.69, lon:-77.54, aqi:"23847" }, // Emporia
+  { key:"Nottoway",     lat:37.15, lon:-78.01, aqi:"23955" }, // Nottoway
+  { key:"Prince George",lat:37.22, lon:-77.29, aqi:"23875" },
+  { key:"Brunswick",    lat:36.76, lon:-77.86, aqi:"23868" }  // Lawrenceville
+];
+
+// Headers NWS is happy with in browsers
+const H = { "Accept":"application/ld+json" };
+
+/* ----------------------- DEMO DATA ----------------------- */
+const DEMO = {
+  alerts:{
+    features:[{properties:{event:"Red Flag Warning",severity:"Severe",headline:"Increased risk of fire due dry air and strong winds. Use extreme caution with open flames.",effective:new Date().toISOString()}}]
+  },
+  obs:{
+    temperature:{value:19}, windSpeed:{value:7}, windGust:{value:12}, relativeHumidity:{value:28}, timestamp:new Date().toISOString()
+  },
+  grid:{ rh:28, wind:26 } // min RH %, max wind mph (derived)
+};
+
+/* ----------------------- UI helpers ----------------------- */
+const $ = sel => document.querySelector(sel);
+const stamp = () => $("#stamp").textContent = new Date().toLocaleString();
+document.getElementById("btnTheme").onclick = ()=> document.documentElement.classList.toggle("light");
+let useDemo = false;
+document.getElementById("btnDemo").onclick = ()=>{ useDemo=!useDemo; document.getElementById("btnDemo").textContent = "Demo: " + (useDemo?"On":"Off"); refreshAll(); };
+document.getElementById("btnRefresh").onclick = ()=> refreshAll();
+
+/* ----------------------- Map ----------------------- */
+const map = L.map("map", { zoomControl:true }).setView([CENTER.lat, CENTER.lon], 9);
+L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom:19, attribution:"© OpenStreetMap" }).addTo(map);
+
+// Counties outline (red boundary, light fill)
+fetch("assets/data/counties.geojson").then(r=>r.json()).then(geo=>{
+  L.geoJSON(geo, {
+    style: { color:"#ef4444", weight:2, fillColor:"#ef444420", fillOpacity:0.15 }
+  }).addTo(map);
+}).catch(e=>console.warn("counties.geojson", e));
+
+// Local hotspots
+fetch("assets/data/hotspots.geojson").then(r=>r.json()).then(geo=>{
+  L.geoJSON(geo, {
+    pointToLayer: (f,latlng)=> L.circleMarker(latlng,{radius:6,color:"#fb923c",fillColor:"#fb923c",fillOpacity:.9,weight:1}),
+    onEachFeature: (f,l)=>{
+      const p = f.properties||{};
+      l.bindPopup(`<b>${p.title||"Thermal Hotspot"}</b><br><span class="small">Confidence: ${p.confidence||"nominal"}</span><br><span class="small">Timestamp: ${p.timestamp||"—"}</span>`);
+    }
+  }).addTo(map);
+}).catch(e=>console.warn("hotspots.geojson", e));
+
+/* ----------------------- NWS fetchers ----------------------- */
+async function getPoint(lat, lon){
+  const url = `https://api.weather.gov/points/${lat},${lon}`;
+  const r = await fetch(url, { headers:H });
+  if(!r.ok) throw new Error("points "+r.status);
   return r.json();
 }
-
-async function fetchAlerts() {
-  try {
-    const pt = await getPoint();
-    const zone = pt.properties.forecastZone.split("/").pop();
-    const a = await fetch(`https://api.weather.gov/alerts/active?zone=${zone}`, { headers: HEADERS }).then(r=>r.json());
-    const list = a.features.slice(0,6);
-    const ul = $("alerts"); ul.innerHTML="";
-    if (!list.length) { ul.innerHTML="<li>No active alerts.</li>"; return; }
-    list.forEach(f=>{
-      const p=f.properties;
-      ul.innerHTML+=`<li><b>${p.event}</b> — ${p.severity}<br><small>${p.headline}</small></li>`;
-    });
-  } catch(e){ console.error(e); $("alerts").innerHTML="<li>Error loading alerts.</li>"; }
+async function fetchAlerts(){
+  try{
+    const pt = await getPoint(CENTER.lat, CENTER.lon);
+    const zone = (pt.properties.forecastZone||"").split("/").pop();
+    const r = await fetch(`https://api.weather.gov/alerts/active?zone=${zone}`, { headers:H });
+    if(!r.ok) throw new Error("alerts "+r.status);
+    return r.json();
+  }catch(e){
+    console.warn("alerts failed, using demo", e);
+    return DEMO.alerts;
+  }
 }
-
-async function fetchObs() {
-  try {
-    const pt = await getPoint();
+async function fetchObsNear(lat, lon){
+  try{
+    const pt = await getPoint(lat, lon);
     const sUrl = pt.properties.observationStations;
-    const s = await fetch(sUrl,{headers:HEADERS}).then(r=>r.json());
-    const id = s.features[0].properties.stationIdentifier;
-    const o = await fetch(`https://api.weather.gov/stations/${id}/observations/latest`,{headers:HEADERS}).then(r=>r.json());
-    const p=o.properties;
-    $("temp").textContent = p.temperature?.value!=null ? (p.temperature.value*9/5+32).toFixed(0)+" °F" : "—";
-    const ws=p.windSpeed?.value,wg=p.windGust?.value;
-    $("wind").textContent = ws!=null ? `${(ws*2.23694).toFixed(0)} mph${wg?` (g ${(wg*2.23694).toFixed(0)})`:''}` : "—";
-    $("rh").textContent = p.relativeHumidity?.value!=null ? `${p.relativeHumidity.value.toFixed(0)} %` : "—";
-    $("obsTime").textContent = p.timestamp ? new Date(p.timestamp).toLocaleString() : "—";
-  } catch(e){ console.error(e); }
+    const s = await fetch(sUrl, { headers:H }).then(r=>r.json());
+    const id = s.features?.[0]?.properties?.stationIdentifier;
+    if(!id) throw new Error("no station");
+    const o = await fetch(`https://api.weather.gov/stations/${id}/observations/latest`, { headers:H }).then(r=>r.json());
+    const p = o.properties||{};
+    return {
+      temperature:p.temperature?.value, // °C
+      windSpeed:p.windSpeed?.value,     // m/s
+      windGust:p.windGust?.value,       // m/s
+      relativeHumidity:p.relativeHumidity?.value,
+      timestamp:p.timestamp
+    };
+  }catch(e){
+    console.warn("obs failed, demo", e);
+    return structuredClone(DEMO.obs);
+  }
+}
+async function fetchGrid(lat, lon){
+  try{
+    const pt = await getPoint(lat, lon);
+    const g = await fetch(pt.properties.forecastGridData, { headers:H }).then(r=>r.json());
+    const rhVals = (g.properties.relativeHumidity?.values||[]).slice(0,12).map(v=>v.value).filter(v=>v!=null);
+    const wVals  = (g.properties.windSpeed?.values||[]).slice(0,12).map(v=>v.value).filter(v=>v!=null);
+    const minRH = rhVals.length ? Math.min(...rhVals) : null;                 // %
+    const maxW  = wVals.length  ? Math.max(...wVals)*2.23694 : null;         // m/s -> mph
+    return { rh:minRH, wind:maxW };
+  }catch(e){
+    console.warn("grid failed, demo", e);
+    return structuredClone(DEMO.grid);
+  }
 }
 
-async function fetchDanger() {
-  try {
-    const pt = await getPoint();
-    const g = await fetch(pt.properties.forecastGridData,{headers:HEADERS}).then(r=>r.json());
-    const rh=g.properties.relativeHumidity.values.slice(0,12).map(v=>v.value);
-    const ws=g.properties.windSpeed.values.slice(0,12).map(v=>v.value);
-    const minRH=Math.min(...rh), maxWind=Math.max(...ws)*2.23694;
-    let cls="Low",lvl="low";
-    if (minRH<=20||(minRH<=30&&maxWind>=30)){cls="Very High (4)";lvl="vhigh";}
-    else if (minRH<=30&&maxWind>=15){cls="High (3)";lvl="high";}
-    else if (minRH<=40&&maxWind>=10){cls="Moderate (2)";lvl="mod";}
-    $("danger").textContent=`${cls} — RH ${minRH.toFixed(0)}% / wind ${maxWind.toFixed(0)} mph`;
-    $("dangerMeta").textContent=`Heuristic 30/30/30 rule applied.`;
-  } catch(e){ console.error(e); $("danger").textContent="—"; }
+/* ----------------------- Renderers ----------------------- */
+function renderAlerts(data){
+  const wrap = document.getElementById("alerts");
+  const list = data?.features||[];
+  if(!list.length){ wrap.innerHTML = `<div class="small">No active alerts for your local zone.</div>`; return; }
+  const f = list[0].properties;
+  wrap.innerHTML = `
+    <h3><span style="color:#7dd3fc; margin-right:6px">⚠️</span> ${f.event||"Alert"} — <span class="tag">${f.severity||"—"}</span></h3>
+    <div>${f.headline||""}</div>
+    <div class="small" style="margin-top:6px">${new Date(f.effective||f.sent||Date.now()).toLocaleString()}</div>`;
 }
 
-// Map and GeoJSON
-let map=L.map("map").setView([37.185,-77.65],9);
-L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OSM"}).addTo(map);
-fetch("assets/data/hotspots.geojson").then(r=>r.json()).then(data=>{
-  L.geoJSON(data,{onEachFeature:(f,layer)=>layer.bindPopup(f.properties?.title||"Hotspot")}).addTo(map);
-}).catch(e=>console.error("geojson",e));
+function aqiButton(zip){
+  const url = `https://www.airnow.gov/?city=&state=&country=USA&zipcode=${encodeURIComponent(zip)}`;
+  return `<a class="badge" href="${url}" target="_blank" rel="noopener">AQI (link)</a>`;
+}
 
-// Run
-function refreshAll(){fetchAlerts();fetchObs();fetchDanger();}
-$("refreshBtn").onclick=refreshAll;
+function f2(c){ return c==null ? null : (c*9/5 + 32); }
+
+function clsBadge(n){  // 1..4 -> badge html
+  const m = {
+    1:{c:"b1",t:"1"}, 2:{c:"b2",t:"2"}, 3:{c:"b3",t:"3"}, 4:{c:"b4",t:"4"}
+  }[n] || {c:"",t:"—"};
+  return `<span class="badge ${m.c}"><span class="dot"></span>${m.t}</span>`;
+}
+
+/* ----------------------- Logic ----------------------- */
+function localClass(minRH, maxWind){
+  if(minRH==null || maxWind==null) return null;
+  if(minRH <= 20 || (minRH <= 30 && maxWind >= 30)) return 4;   // Very High
+  if(minRH <= 30 && maxWind >= 15) return 3;                    // High
+  if(minRH <= 40 && maxWind >= 10) return 2;                    // Moderate
+  return 1;                                                     // Low
+}
+
+/* ----------------------- Controller ----------------------- */
+async function refreshAll(){
+  stamp();
+
+  // Alerts
+  const alerts = useDemo ? DEMO.alerts : await fetchAlerts();
+  renderAlerts(alerts);
+
+  // Per-county cards & danger table
+  const cards = [];
+  const tblRows = [];
+
+  for(const c of COUNTIES){
+    const obs = useDemo ? structuredClone(DEMO.obs) : await fetchObsNear(c.lat, c.lon);
+    const grid = useDemo ? structuredClone(DEMO.grid) : await fetchGrid(c.lat, c.lon);
+
+    const tF = f2(obs.temperature);
+    const ws = obs.windSpeed!=null ? (obs.windSpeed*2.23694) : null; // m/s->mph
+    const wg = obs.windGust!=null ? (obs.windGust*2.23694) : null;
+
+    cards.push(`
+      <div class="card">
+        <h3>${c.key}</h3>
+        <div class="kv"><span>Temp</span><b>${tF!=null? tF.toFixed(0)+"°F":"—"}</b></div>
+        <div class="kv"><span>RH</span><b>${obs.relativeHumidity!=null? obs.relativeHumidity.toFixed(0)+"%":"—"}</b></div>
+        <div class="kv"><span>Wind</span><b>${ws!=null? ws.toFixed(0)+" mph": "—"}${wg!=null? " (g "+wg.toFixed(0)+")":""}</b></div>
+        <div style="margin-top:8px">${aqiButton(c.aqi)}</div>
+        <div class="small" style="margin-top:6px">${obs.timestamp? new Date(obs.timestamp).toLocaleString():""}</div>
+      </div>
+    `);
+
+    const lc = localClass(grid.rh, grid.wind);
+    tblRows.push(`
+      <tr>
+        <td>${c.key}</td>
+        <td class="num">${clsBadge(lc)}</td>
+        <td class="num"><span class="badge">${"—"}</span></td>
+      </tr>
+    `);
+  }
+
+  document.getElementById("countyCards").innerHTML = cards.join("");
+  document.getElementById("dangerBody").innerHTML = tblRows.join("");
+}
+
+/* ----------------------- Kickoff ----------------------- */
 refreshAll();
-setInterval(refreshAll,900000);
+// periodic refresh (15 min)
+setInterval(refreshAll, 15*60*1000);
 </script>
 </body>
 </html>
