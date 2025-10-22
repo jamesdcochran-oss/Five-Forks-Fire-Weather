@@ -1,49 +1,58 @@
 <!doctype html>
-<html lang="en" data-theme="light">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Five Forks Fire Weather — Dashboard</title>
-  <link rel="stylesheet" href="assets/css/styles.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Five Forks Fire Weather</title>
+  <link rel="preconnect" href="https://api.weather.gov">
+  <link rel="stylesheet" href="assets/styles.css" />
 </head>
 <body>
-  <header class="topbar">
-    <div>
-      <h1>Five Forks Fire Weather</h1>
-      <small>Live fire weather, AQI, hotspots, and alerts</small>
-    </div>
-    <button id="themeToggle">Toggle theme</button>
+  <header>
+    <h1>Five Forks Fire Weather</h1>
+    <button id="themeToggle" aria-label="Toggle theme">Toggle theme</button>
   </header>
 
-  <section class="alerts">
-    <h2>NWS Wakefield Alerts</h2>
-    <ul id="alertsList"><li>Loading alerts…</li></ul>
-  </section>
+  <main>
+    <section>
+      <h2>NWS Wakefield Alerts</h2>
+      <ul id="alerts"><li>Loading alerts…</li></ul>
+      <small class="note">Source: NWS API (api.weather.gov)</small>
+    </section>
 
-  <main class="layout">
-    <div id="map"></div>
-    <aside class="panel">
-      <h2>Current Conditions</h2>
-      <ul id="countyList" class="metrics"></ul>
-
-      <h2>Danger Class</h2>
-      <div class="legend">
-        <span class="badge badge-1">1 Low</span>
-        <span class="badge badge-2">2 Moderate</span>
-        <span class="badge badge-3">3 High</span>
-        <span class="badge badge-4">4 Very High</span>
-        <span class="badge badge-5">5 Extreme</span>
+    <section>
+      <h2>Current Conditions (nearest station)</h2>
+      <div id="obs">
+        <div class="kv"><span>Temperature</span><b id="temp">—</b></div>
+        <div class="kv"><span>Wind</span><b id="wind">—</b></div>
+        <div class="kv"><span>Relative Humidity</span><b id="rh">—</b></div>
+        <div class="kv"><span>Last Update</span><b id="obsTime">—</b></div>
       </div>
-      <div id="dangerClass"></div>
-    </aside>
+      <small class="note">From NWS observation station</small>
+    </section>
+
+    <section>
+      <h2>Local Danger Class (quick heuristic)</h2>
+      <p id="danger" class="badge">—</p>
+      <small class="note">Computed from NWS forecast (min RH & 20-ft wind) with your 30/30/30 heuristic.</small>
+    </section>
+
+    <section>
+      <h2>Air Quality (AQI)</h2>
+      <!-- AirNow widget – no key needed -->
+      <iframe
+        title="AirNow AQI"
+        width="290" height="200" style="border:0"
+        src="https://widget.airnow.gov/aq-dial-widget/?z=23847&n=Five%20Forks%20District">
+      </iframe>
+      <div><a href="https://www.airnow.gov/" target="_blank" rel="noopener">More at AirNow</a></div>
+    </section>
   </main>
 
-  <footer class="footer">
-    <small>Keys: FIRMS=6ec6f9501dda0774853f77ee933238ed, AirNow=961AB5ED-B1D6-4B5E-8D34-8C097E374925</small>
+  <footer>
+    <small>Built for Five Forks District • Data: NWS & AirNow</small>
   </footer>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script type="module" src="assets/js/app.js"></script>
+  <script src="assets/app.js" type="module"></script>
 </body>
 </html>
