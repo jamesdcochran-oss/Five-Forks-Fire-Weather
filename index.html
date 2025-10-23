@@ -1,444 +1,664 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Fire Weather — Six Counties (VA)</title>
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Five Forks Fire Weather — Demo</title>
 
-  <!-- Add Leaflet styles for the map -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-  
-  <script>
-    // Tailwind configuration and safelist for dynamically generated badge classes
-    tailwind = { config: { safelist: [
-      'bg-red-600/10','text-red-700','ring-1','ring-red-600/20',
-      'bg-orange-500/10','text-orange-700','ring-orange-500/20',
-      'bg-amber-400/10','text-amber-700','ring-amber-400/20',
-      'bg-emerald-500/10','text-emerald-700','ring-emerald-500/20',
-      'bg-slate-300','text-slate-700'
-    ]}};
-  </script>
-  <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tailwind (CDN) -->
+    <script>
+      window.tailwind = { darkMode: 'class' };
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
 
-  <style>
-    /* Custom styles for dashboard aesthetics */
-    .num { text-align:right; font-variant-numeric: tabular-nums; }
-    .badge { display:inline-flex; align-items:center; padding:2px 8px; border-radius:9999px;
-             font-size:0.75rem; font-weight:600; line-height:1rem; }
-    /* Leaflet specific styles */
-    #map { z-index: 1; }
-    .leaflet-container { height: 100%; width: 100%; }
-    .leaflet-popup-content-wrapper { border-radius: 0.5rem; }
-  </style>
-</head>
-<body class="bg-gray-50 font-sans p-4 sm:p-6 lg:p-8">
+    <!-- React / ReactDOM UMD -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 
-  <div class="max-w-4xl mx-auto">
-    <!-- Header -->
-    <header class="mb-6">
-      <h1 class="text-3xl font-extrabold text-gray-900">Fire Weather — Six Counties (VA)</h1>
-      <p class="text-gray-500">Real-time data for temperature, humidity, and wind to assess fire risk.</p>
-    </header>
+    <!-- Babel (so we can write JSX in-browser) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-    <!-- Alerts Panel -->
-    <div id="alerts-panel" class="bg-white rounded-xl shadow-lg ring-1 ring-gray-100 p-6 mb-6">
-      <div class="text-gray-500">Fetching alerts…</div>
-    </div>
+    <!-- Recharts UMD (optional; app gracefully falls back if blocked) -->
+    <script src="https://unpkg.com/recharts@2.8.0/umd/Recharts.min.js"></script>
 
-    <!-- Map & Selection Grid -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-      <!-- Map Section -->
-      <div class="bg-white rounded-xl shadow-lg overflow-hidden ring-1 ring-gray-100 p-4">
-        <h2 class="text-lg font-bold text-gray-800 mb-3">Area Map & County Selection</h2>
-        <div id="map" class="h-[300px] w-full rounded-lg bg-slate-200"></div>
-        <p id="map-message" class="text-sm text-gray-500 mt-2 text-center hidden">Click a marker to select a county.</p>
-      </div>
+    <!-- Leaflet (for embedded map) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-      <!-- Detail Card (Selected County) -->
-      <div class="bg-white rounded-xl shadow-lg ring-1 ring-gray-100 p-6 flex flex-col justify-between">
-        <h2 id="county-title" class="text-xl font-bold text-gray-800 mb-4">Select a County on the Map</h2>
-        <div id="county-data" class="space-y-4">
-          <div class="flex items-center justify-between">
-            <span class="text-gray-500">Temperature</span>
-            <span id="detail-t" class="text-3xl font-extrabold text-gray-900 num">—</span>
+    <style>
+      html, body, #root { height: 100%; }
+      body { margin: 0; }
+    </style>
+  </head>
+  <body class="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-slate-100">
+    <div id="root"></div>
+
+    <script type="text/babel">
+      const { useState, useEffect, useRef } = React;
+
+      /* ------------------ Error Boundary ------------------ */
+      class ErrorBoundary extends React.Component {
+        constructor(props){ super(props); this.state = { error: null }; }
+        static getDerivedStateFromError(error){ return { error }; }
+        componentDidCatch(err, info){ console.error('Caught by ErrorBoundary:', err, info); }
+        render(){
+          if (this.state.error) {
+            return (
+              <div className="max-w-2xl mx-auto p-4 mt-6 rounded-xl border border-red-500/40 bg-red-500/10">
+                <h2 className="text-red-300 font-bold mb-2">Something crashed in the UI</h2>
+                <pre className="text-xs text-red-200 whitespace-pre-wrap">{String(this.state.error?.message || this.state.error)}</pre>
+                <p className="text-xs text-slate-300 mt-2">Open the console for stack details. The app tries to keep going.</p>
+              </div>
+            );
+          }
+          return this.props.children;
+        }
+      }
+
+      /* ------------------ Optional Recharts ------------------ */
+      const RechartsLib = window.Recharts ?? null;
+      const hasRecharts = !!RechartsLib;
+      let AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend;
+      if (hasRecharts) {
+        ({ AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } = RechartsLib);
+      }
+
+      /* ------------------ Tiny UI primitives ------------------ */
+      const cn = (...a) => a.filter(Boolean).join(' ');
+      const Card = ({ className, children }) => (
+        <div className={cn('rounded-xl border bg-slate-800/50 border-slate-700/50 backdrop-blur-sm', className)}>{children}</div>
+      );
+      const CardHeader = ({ className, children }) => <div className={cn('px-4 pt-4 pb-2', className)}>{children}</div>;
+      const CardTitle = ({ className, children }) => <h3 className={cn('text-white font-semibold text-base', className)}>{children}</h3>;
+      const CardContent = ({ className, children }) => <div className={cn('px-4 pb-4', className)}>{children}</div>;
+      const Badge = ({ className, children }) => (
+        <span className={cn('inline-flex items-center rounded-md px-2 py-1 text-xs font-medium bg-slate-700/40 text-slate-200', className)}>{children}</span>
+      );
+      const Button = ({ className, children, ...props }) => (
+        <button {...props} className={cn('inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-60', className)}>{children}</button>
+      );
+      const Progress = ({ value, className }) => {
+        const pct = Math.max(0, Math.min(100, value ?? 0));
+        return (
+          <div className={cn('w-full h-2 rounded bg-slate-700/50', className)}>
+            <div className="h-2 rounded bg-orange-500" style={{ width: pct + '%' }} />
           </div>
-          <div class="flex items-center justify-between">
-            <span class="text-gray-500">Relative Humidity (RH)</span>
-            <span id="detail-rh" class="text-3xl font-extrabold text-gray-900 num">—</span>
-          </div>
-          <div class="flex items-center justify-between">
-            <span class="text-gray-500">Wind Speed (W)</span>
-            <span id="detail-w" class="text-3xl font-extrabold text-gray-900 num">—</span>
-          </div>
-        </div>
-        <div class="mt-6 pt-4 border-t border-gray-100 text-sm">
-          <p class="text-gray-500">Fire Danger Assessment (Simplified):</p>
-          <div id="detail-badge" class="mt-2 badge bg-slate-300 text-slate-700">
-            Awaiting Data
-          </div>
-        </div>
-      </div>
-    </div>
+        );
+      };
 
-    <!-- County List (Data Grid) -->
-    <div class="bg-white rounded-xl shadow-lg ring-1 ring-gray-100 p-6">
-      <h2 class="text-xl font-bold text-gray-800 mb-4">All County Overview</h2>
-      <div id="county-grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-        <!-- County cards will be rendered here -->
-      </div>
-    </div>
-  </div>
-  
-  <!-- Leaflet script MUST be loaded before the application script that calls L.map -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-20n6aW81p4k+FaKocW06YJcWJjJ48IjsyL4J0N8h96v4=" crossorigin=""></script>
+      /* ------------------ Diagnostics ("tests") ------------------ */
+      function Diagnostics(){
+        // Mini tests that run on load to catch CDN/env issues.
+        const splitOk = (()=>{ const s = 'a,b\r\nc,d'; const lines = s.trim().split(/\r?\n/); return lines.length === 2; })();
+        const tests = [
+          { name: 'React present', pass: !!window.React },
+          { name: 'ReactDOM present', pass: !!window.ReactDOM && !!window.ReactDOM.createRoot },
+          { name: 'Leaflet present', pass: !!window.L },
+          { name: 'Recharts present (optional)', pass: !!window.Recharts },
+          { name: 'CSV CRLF split works', pass: splitOk },
+        ];
+        return (
+          <div className="text-xs text-slate-400 flex flex-wrap gap-2">
+            {tests.map((t, i)=> (
+              <span key={i} className={cn('px-2 py-1 rounded border', t.pass?'border-green-500/40 bg-green-500/10 text-green-300':'border-slate-600/40 bg-slate-700/30 text-slate-300')}>
+                {t.pass ? '✅' : '⚪'} {t.name}
+              </span>
+            ))}
+          </div>
+        );
+      }
 
-  <script>
-    /* -------------------------------------------------------------------------- */
-    /* GEOJSON DATA (Coordinates for the six Virginia Counties) */
-    /* -------------------------------------------------------------------------- */
-    const geoJsonData = {
-      "type": "FeatureCollection",
-      "features": [
-        // County markers (points)
-        {"type":"Feature","id":"83f50eef-2235-44b1-9e6c-9c59491b4a24","properties":{"title":"Dinwiddie"},"geometry":{"type":"Point","coordinates":[-77.60261,37.02153]}},
-        {"type":"Feature","id":"af1bedd5-4aa5-4c09-b204-51bd6117bd65","properties":{"title":"Amelia"},"geometry":{"type":"Point","coordinates":[-77.99537,37.32646]}},
-        {"type":"Feature","id":"8d110fd1-adbb-488e-a337-3e62aa363344","properties":{"title":"Nottoway"},"geometry":{"type":"Point","coordinates":[-78.03382,37.14824]}},
-        {"type":"Feature","id":"931bd399-bf37-4978-a93e-22fc0939fba7","properties":{"title":"Brunswick"},"geometry":{"type":"Point","coordinates":[-77.85049,36.78112]}},
-        {"type":"Feature","id":"67df6d39-46fd-4ed0-9a24-02de31fca159","properties":{"title":"Greensville"},"geometry":{"type":"Point","coordinates":[-77.56347,36.6413]}},
-        {"type":"Feature","id":"d2a525bc-fd93-4eb3-9fdc-6bcc486d7639","properties":{"title":"Prince George"},"geometry":{"type":"Point","coordinates":[-77.18101,37.1881]}},
-        // Polygon boundary for visualization
-        {"type":"Feature","id":"5785a3d9-f1e7-4903-be7d-0a2c6792938d","properties":{},"geometry":{"type":"Polygon","coordinates":[[[-78.2350117578125,37.363789898359414],[-78.23089188476563,37.29062448283949],[-78.240504921875,37.11755644626926],[-78.21578568359375,37.08250638697882],[-78.15948075195313,37.04634403220737],[-78.07845658203125,37.00797118486934],[-78.00567215859313,37.020830045694964],[-78.0482441796875,36.54218923323913],[-77.28744095703125,36.54217934004624],[-77.41927689453125,36.697591947028855],[-77.4549824609375,36.74712573578124],[-77.46322220703125,36.86427710321731],[-77.54012650390625,36.859882122283764],[-77.6087910546875,36.880756030323596],[-77.15423172851563,37.115021710981814],[-77.07320755859375,37.17741654078484],[-76.96471756835938,37.247412528316616],[-76.99218338867188,37.299453009740276],[-77.0210225,37.306007271306434],[-77.06908768554688,37.26776602706855],[-77.08282059570313,37.27541583062041],[-77.09106034179688,37.31365318781136],[-77.12813919921875,37.303822580920595],[-77.23662918945313,37.31692977113898],[-77.35473221679688,37.23606570446547],[-77.32726639648438,37.19231923958888],[-77.34374588867188,37.16824787325909],[-77.39181107421875,37.170436496249174],[-77.42339676757813,37.16277603847045],[-77.43163651367188,37.185755082241165],[-77.45635575195313,37.18794319808966],[-77.44536942382813,37.21638293433666],[-77.515407265625,37.21857016247888],[-77.5978047265625,37.25792942330379],[-77.64998978515625,37.26667313454041],[-77.66646927734375,37.29320183064708],[-77.71041458984375,37.303033825915705],[-77.7680928125,37.284461200413624],[-77.79830521484375,37.328154196565244],[-77.84774369140625,37.35435780585329],[-77.87520951171875,37.38709945830021],[-77.86422318359375,37.45318674511003],[-77.92876786132813,37.48261602071299],[-78.00155228515625,37.49787108359377],[-78.086696328125,37.45588769581372],[-78.13888138671875,37.46024816203661],[-78.18969315429688,37.446075717235935],[-78.22539872070313,37.40136041928257],[-78.23913163085938,37.382812099276194],[-78.2350117578125,37.362076193229214],[-78.2350117578125,37.363789898359414]]]}}
-      ]
-    };
+      /* ------------------ Helpers ------------------ */
+      const AQI_STYLES = {
+        'Good': { bg: 'bg-green-500/20', text: 'text-green-400', border: 'border-green-500/30' },
+        'Moderate': { bg: 'bg-yellow-500/20', text: 'text-yellow-400', border: 'border-yellow-500/30' },
+        'Unhealthy for Sensitive Groups': { bg: 'bg-orange-500/20', text: 'text-orange-400', border: 'border-orange-500/30' },
+        'Unhealthy': { bg: 'bg-red-500/20', text: 'text-red-400', border: 'border-red-500/30' },
+        'Very Unhealthy': { bg: 'bg-purple-500/20', text: 'text-purple-400', border: 'border-purple-500/30' },
+        'Hazardous': { bg: 'bg-red-900/30', text: 'text-red-300', border: 'border-red-800/50' },
+      };
+      const DANGER_STYLES = {
+        'Low': 'bg-green-500/20 text-green-400 border-green-500/30',
+        'Moderate': 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+        'High': 'bg-orange-500/20 text-orange-400 border-orange-500/30',
+        'Very High': 'bg-red-500/20 text-red-400 border-red-500/30',
+        'Extreme': 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+      };
+      const timeSince = (d) => {
+        const diff = Math.floor((Date.now() - d.getTime()) / 60000);
+        if (diff <= 0) return 'Just now';
+        if (diff === 1) return '1 min ago';
+        return diff + ' min ago';
+      };
+      const calcDanger = (h, wind, t, kbdi) => {
+        let s = 0; if (h < 30) s += 2; if (wind > 15) s += 2; if (t > 85) s += 1; if (kbdi > 400) s += 2; if (kbdi > 600) s += 1; if (h < 20) s += 1;
+        if (s >= 6) return { cls: '5', lvl: 'Extreme', css: DANGER_STYLES['Extreme'], icon: '🔥' };
+        if (s >= 5) return { cls: '4', lvl: 'Very High', css: DANGER_STYLES['Very High'], icon: '🔥' };
+        if (s >= 3) return { cls: '3', lvl: 'High', css: DANGER_STYLES['High'], icon: '⚠️' };
+        if (s >= 2) return { cls: '2', lvl: 'Moderate', css: DANGER_STYLES['Moderate'], icon: '〰️' };
+        return { cls: '1', lvl: 'Low', css: DANGER_STYLES['Low'], icon: '✅' };
+      };
 
-    /* -------------------------------------------------------------------------- */
-    /* UTILITY FUNCTIONS                                                          */
-    /* -------------------------------------------------------------------------- */
-    const $ = (id) => document.getElementById(id);
-    const countySlug = (title) => title.toLowerCase().replace(/\s/g, '_');
-    
-    // Simple custom alert dialog replacement (as alert() is forbidden)
-    function showMessage(title, message) {
-        const dialog = document.createElement('div');
-        dialog.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4';
-        dialog.innerHTML = `
-            <div class="bg-white rounded-lg shadow-2xl p-6 max-w-sm w-full">
-                <h3 class="text-lg font-semibold text-gray-900 mb-3">${title}</h3>
-                <p class="text-sm text-gray-600 mb-6">${message}</p>
-                <div class="flex justify-end">
-                    <button onclick="this.closest('.fixed').remove()" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition">
-                        Close
-                    </button>
+      /* ------------------ Mock + Live Data Loader ------------------ */
+      function useMockData(){
+        const [lastUpdate, setLastUpdate] = useState(new Date());
+        const [isRefreshing, setIsRefreshing] = useState(false);
+        const [airQuality, setAir] = useState(null);
+        const [incidents, setInc] = useState([]);
+        const [stations, setSta] = useState([]);
+        const [fireWeather, setFW] = useState(null);
+        const [drought, setDr] = useState(null);
+        const [alerts, setAl] = useState([]);
+        const [hotspots, setHotspots] = useState([]);
+
+        const center = { lat: 37.09, lng: -77.68 }; // Five Forks approx
+        const inBBox = (lat, lon, pad=2.0) => (
+          lat > center.lat - pad && lat < center.lat + pad &&
+          lon > center.lng - pad && lon < center.lng + pad
+        );
+        const parseCSV = (text) => {
+          // Robust-ish CSV line splitting with BOM/CRLF handling
+          const norm = text.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n').trim();
+          const [headerLine, ...lines] = norm.split('\n');
+          const headers = headerLine.split(',');
+          return lines.filter(Boolean).map(l=>{
+            const cells = l.split(',');
+            const row = {}; headers.forEach((h,i)=> row[h] = cells[i]);
+            return row;
+          });
+        };
+
+        const load = async () => {
+          // Mocked widgets
+          setAir({ aqi: 58, category: 'Moderate', primary_pollutant: 'PM2.5', pm25: 14, temperature: 78, humidity: 42, wind_speed: 9, wind_direction: 'NW', fire_danger_level: 'High' });
+          setInc([{ id: 'a1', incident_name: 'Piney Ridge', distance_miles: 34, acres: 125, containment: 45, frp: 30, confidence: 'high', status: 'active', satellite: 'VIIRS', created_date: new Date().toISOString() }]);
+          const names = ['Jetersville','Amelia Court House','Burkeville','Blackstone','Ebony','Brodnax','Emporia','Dinwiddie','Carson','Sutherland','Prince George'];
+          setSta(names.map((n,i)=>({ id:'st-'+i, name:n, location:'VA', temperature:70+((i*3)%12), humidity:35+((i*7)%40), wind_speed:5+((i*2)%12), wind_gust:8+((i*3)%18), dew_point:55+(i%6), kbdi:350+((i*30)%300), aqi:40+((i*10)%70), last_updated:new Date().toISOString() })));
+          setFW({ source:'WFAS/NWS', fire_danger_rating:'High', burning_index:63, spread_component:51, energy_release:42, ignition_component:18, ten_hour_fuel_moisture:6, hundred_hour_fuel_moisture:7, kbdi:447, forecast_text:'Warm, dry, and breezy this afternoon. RH 28–35%. 20-ft winds WNW 12–18 mph with gusts 22–28 mph.', red_flag_warning:false });
+          setDr({ drought_level: 'D1 – Moderate', percent_area_affected: 24, conditions_summary: 'Dry topsoil, stressed vegetation in sandy soils.', impacts: 'Voluntary water conservation recommended.'});
+
+          // NWS alerts (broad area; filtered later)
+          try {
+            const res = await fetch('https://api.weather.gov/alerts/active?area=VA,NC,MD', { headers: { Accept: 'application/geo+json' } });
+            if (res.ok) {
+              const json = await res.json();
+              const feats = json.features || [];
+              const mapped = feats.map(f=> ({
+                id: f.id,
+                alert_type: f.properties?.event,
+                severity: f.properties?.severity,
+                headline: f.properties?.headline,
+                description: f.properties?.description,
+                instruction: f.properties?.instruction,
+                affected_zones: f.properties?.geocode?.UGC || [],
+                onset: f.properties?.onset,
+                expires: f.properties?.expires,
+                is_active: true,
+              }));
+              const prioritized = mapped.filter(a => /red flag|fire weather/i.test(a.alert_type||'') || /AKQ|Wakefield/i.test(a.headline||''));
+              setAl(prioritized.length ? prioritized : mapped.slice(0,5));
+            }
+          } catch (e) {
+            console.warn('NWS fetch failed:', e);
+          }
+
+          // NASA FIRMS 24h (VIIRS + MODIS) → bbox filter
+          const sources = [
+            { url: 'https://firms.modaps.eosdis.nasa.gov/active_fire/c2/csv/VIIRS_C2_USA_contiguous_and_Hawaii_24h.csv', sat: 'VIIRS' },
+            { url: 'https://firms.modaps.eosdis.nasa.gov/active_fire/c6.1/csv/MODIS_C6_1_USA_contiguous_and_Hawaii_24h.csv', sat: 'MODIS' },
+          ];
+          try {
+            const allRows = [];
+            for (const s of sources) {
+              try {
+                const r = await fetch(s.url, { cache: 'no-store' });
+                if (!r.ok) continue;
+                const txt = await r.text();
+                const rows = parseCSV(txt);
+                rows.forEach(row => {
+                  const lat = parseFloat(row.latitude);
+                  const lon = parseFloat(row.longitude);
+                  if (!isFinite(lat) || !isFinite(lon)) return;
+                  if (!inBBox(lat, lon, 2.0)) return; // ~2° bbox around Five Forks
+                  const conf = (row.confidence_text || row.confidence || '').toString().toLowerCase();
+                  const normConf = /high/.test(conf) ? 'high' : /nominal|medium|med/.test(conf) ? 'nominal' : 'low';
+                  allRows.push({
+                    lat, lng: lon,
+                    confidence: normConf,
+                    satellite: s.sat,
+                    acq_date: row.acq_date,
+                    acq_time: row.acq_time,
+                    frp: parseFloat(row.frp)||undefined,
+                  });
+                });
+              } catch(_){ /* ignore one-source failure */ }
+            }
+            if (allRows.length) setHotspots(allRows);
+          } catch (_) { /* network blocked */ }
+
+          setLastUpdate(new Date());
+        };
+
+        useEffect(()=>{ load(); const t=setInterval(load, 15*60*1000); return ()=>clearInterval(t); },[]);
+        const refresh = async()=>{ setIsRefreshing(true); await load(); setIsRefreshing(false); };
+        return { lastUpdate, isRefreshing, refresh, airQuality, incidents, stations, fireWeather, drought, alerts, hotspots };
+      }
+
+      /* ------------------ Feature Components ------------------ */
+      function MetricsCard({ title, value, unit, status, description }){
+        const statusColors = { good:'bg-green-500/20 text-green-400', moderate:'bg-yellow-500/20 text-yellow-400', warning:'bg-orange-500/20 text-orange-400', danger:'bg-red-500/20 text-red-400' };
+        return (
+          <Card className="relative overflow-hidden hover:border-orange-500/30 transition-all">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-orange-500/10 to-transparent rounded-full blur-2xl" />
+            <CardHeader className="pb-2">
+              <div className="flex items-start justify-between">
+                <div>
+                  <CardTitle className="text-sm text-slate-400">{title}</CardTitle>
+                  {description && <p className="text-xs text-slate-500 mt-1">{description}</p>}
                 </div>
-            </div>
-        `;
-        document.body.appendChild(dialog);
-    }
-
-    /* -------------------------------------------------------------------------- */
-    /* FIRE DANGER LOGIC                                                          */
-    /* -------------------------------------------------------------------------- */
-    // This is a simplified assessment logic based on key weather parameters
-    function getFireDanger(temp, rh, wind) {
-      if (temp === '–' || rh === '–' || wind === '–') {
-        return { label: 'Data Missing', classes: 'bg-slate-300 text-slate-700' };
+                <div className="p-2.5 rounded-xl bg-orange-500/10">🔥</div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-bold text-white">{value}</span>
+                {unit && <span className="text-lg text-slate-400">{unit}</span>}
+              </div>
+              {status && <div className="mt-3"><Badge className={cn('border-0 font-medium', statusColors[status])}>{status[0].toUpperCase()+status.slice(1)}</Badge></div>}
+            </CardContent>
+          </Card>
+        );
       }
 
-      const t = parseFloat(temp);
-      const h = parseFloat(rh);
-      // Extract the numeric part of the wind speed string (e.g., "5 mph" -> 5)
-      const w = parseInt(wind.match(/\d+/)?.[0] || '0');
-
-      if (h <= 20 && w >= 15) {
-        return { label: 'EXTREME RISK', classes: 'bg-red-600/10 text-red-700 ring-1 ring-red-600/20' };
-      } else if ((h <= 25 && w >= 10) || t >= 90) {
-        return { label: 'HIGH RISK', classes: 'bg-orange-500/10 text-orange-700 ring-orange-500/20' };
-      } else if (h <= 35) {
-        return { label: 'MODERATE RISK', classes: 'bg-amber-400/10 text-amber-700 ring-amber-400/20' };
-      } else {
-        return { label: 'LOW RISK', classes: 'bg-emerald-500/10 text-emerald-700 ring-emerald-500/20' };
-      }
-    }
-
-    /* -------------------------------------------------------------------------- */
-    /* API CALLS & CACHING (NWS API)                                              */
-    /* -------------------------------------------------------------------------- */
-
-    // Weather Forecast Office (WFO) ID covering these Virginia counties
-    const WFO_ID = 'LWX'; 
-
-    async function getHourly(lat, lon, { force = false } = {}) {
-      const cacheKey = `hourly:${lat},${lon}`;
-      const cache = sessionStorage.getItem(cacheKey);
-
-      if (!force && cache) {
-        const cachedData = JSON.parse(cache);
-        // Check if cached data is less than 1 hour old
-        if (Date.now() - cachedData.timestamp < 3600000) { 
-          return cachedData.periods;
+      function AirQualityCard({ data }){
+        if(!data){
+          return (<Card><CardHeader><CardTitle>Air Quality</CardTitle></CardHeader><CardContent><p className="text-slate-400">Loading air quality data…</p></CardContent></Card>);
         }
+        const style = AQI_STYLES[data.category] || AQI_STYLES['Good'];
+        return (
+          <Card className={cn('border-2 hover:shadow-lg hover:shadow-orange-500/10', style.border)}>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Air Quality Index</CardTitle>
+                <Badge className={cn(style.bg, style.text, 'border-0 font-bold px-3 py-1')}>{data.category}</Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="text-center py-4">
+                <div className="text-6xl font-bold text-white mb-2">{data.aqi}</div>
+                <p className="text-slate-400 text-sm">Current AQI Level</p>
+                <Progress value={(data.aqi/500)*100} className="mt-4" />
+              </div>
+              <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-700/50 text-sm">
+                <div><div className="text-slate-400 text-xs">Wind Speed</div><p className="text-white font-semibold">{data.wind_speed} mph</p><p className="text-slate-500 text-xs">{data.wind_direction}</p></div>
+                <div><div className="text-slate-400 text-xs">Humidity</div><p className="text-white font-semibold">{data.humidity}%</p></div>
+                <div><div className="text-slate-400 text-xs">Temperature</div><p className="text-white font-semibold">{data.temperature}°F</p></div>
+                <div><div className="text-slate-400 text-xs">PM2.5</div><p className="text-white font-semibold">{data.pm25} μg/m³</p></div>
+              </div>
+              <div className={cn('mt-4 p-3 rounded-lg border', style.bg, style.border)}>
+                <p className="text-xs text-slate-300 font-medium">Fire Danger Level</p>
+                <p className={cn('text-lg font-bold mt-1', style.text)}>{data.fire_danger_level}</p>
+              </div>
+            </CardContent>
+          </Card>
+        );
       }
 
-      let gridUrl;
-      try {
-        // 1. Get the forecast grid point URL from NWS
-        const response = await fetch(`https://api.weather.gov/points/${lat},${lon}`);
-        if (!response.ok) throw new Error(`Status ${response.status}`);
-        const data = await response.json();
-        gridUrl = data.properties.forecastHourly;
-      } catch (error) {
-        console.error("Error fetching grid point:", error);
-        throw new Error("Could not determine forecast grid.");
+      function ActiveAlerts({ incidents }){
+        if(!incidents?.length){
+          return (
+            <Card>
+              <CardHeader><CardTitle>Active Fire Incidents</CardTitle></CardHeader>
+              <CardContent>
+                <div className="text-center py-8">
+                  <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-3">✅</div>
+                  <p className="text-green-400 font-semibold">All Clear</p>
+                  <p className="text-slate-500 text-sm mt-1">No active fire incidents detected</p>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        }
+        const statusColor = (s)=> s==='active'?'bg-red-500/20 text-red-400 border-red-500/30': s==='contained'?'bg-yellow-500/20 text-yellow-400 border-yellow-500/30': s==='controlled'?'bg-blue-500/20 text-blue-400 border-blue-500/30':'bg-slate-500/20 text-slate-400';
+        const confColor = (c)=> c==='high'?'text-red-400': c==='nominal'?'text-yellow-400':'text-slate-400';
+        return (
+          <Card className="hover:border-orange-500/30 transition-all">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Active Fire Incidents</CardTitle>
+                <Badge className="bg-orange-500/20 text-orange-400 border-0 font-bold">{incidents.length}</Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3 max-h-96 overflow-auto pr-1">
+                {incidents.map((x)=> (
+                  <div key={x.id} className="p-4 rounded-lg bg-slate-900/50 border border-slate-700/50 hover:border-orange-500/30">
+                    <div className="flex items-start justify-between mb-2">
+                      <div>
+                        <h4 className="font-semibold text-white">{x.incident_name}</h4>
+                        <div className="mt-1 text-xs text-slate-400">📍 {x.distance_miles} miles away</div>
+                      </div>
+                      <Badge className={cn('border', statusColor(x.status))}>{x.status}</Badge>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div><p className="text-slate-500 text-xs">Acres Burned</p><p className="text-white font-semibold">{x.acres ?? 'N/A'}</p></div>
+                      <div><p className="text-slate-500 text-xs">Containment</p><p className="text-white font-semibold">{x.containment ?? 0}%</p></div>
+                      <div><p className="text-slate-500 text-xs">Fire Power</p><div className="flex items-center gap-1"><span className={cn(confColor(x.confidence))}>▲</span><p className="text-white font-semibold">{x.frp} MW</p></div></div>
+                      <div><p className="text-slate-500 text-xs">Confidence</p><p className={cn('font-semibold', confColor(x.confidence))}>{x.confidence}</p></div>
+                    </div>
+                    <div className="mt-3 pt-3 border-t border-slate-700/50 text-xs text-slate-500">Source: {x.satellite} • {new Date(x.created_date).toLocaleString()}</div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        );
       }
 
-      try {
-        // 2. Fetch the hourly forecast data
-        const response = await fetch(gridUrl);
-        if (!response.ok) throw new Error(`Status ${response.status}`);
-        const data = await response.json();
-        const periods = data.properties.periods;
+      function WeatherStationsList({ stations }){
+        if(!stations?.length){
+          return (<Card><CardHeader><CardTitle>Regional Weather Stations</CardTitle></CardHeader><CardContent><p className="text-slate-400">Fetching weather data…</p></CardContent></Card>);
+        }
+        return (
+          <Card>
+            <CardHeader><CardTitle>Regional Weather Stations</CardTitle></CardHeader>
+            <CardContent>
+              <div className="space-y-3 max-h-96 overflow-auto pr-1">
+                {stations.map((s)=>{
+                  const danger = calcDanger(s.humidity, s.wind_speed, s.temperature, s.kbdi);
+                  return (
+                    <div key={s.id} className="p-4 rounded-lg bg-slate-900/50 border border-slate-700/50 hover:border-orange-500/30">
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <h4 className="font-semibold text-white flex items-center gap-2">{s.name} <span className="text-lg">{danger.icon}</span></h4>
+                          <p className="text-xs text-slate-400">{s.location}</p>
+                        </div>
+                        {typeof s.temperature==='number' && (
+                          <div className="text-right">
+                            <p className="text-2xl font-bold text-white">{Math.round(s.temperature)}°F</p>
+                            {s.dew_point!=null && <p className="text-xs text-slate-500">Dew {Math.round(s.dew_point)}°</p>}
+                          </div>
+                        )}
+                      </div>
 
-        // Cache the new data
-        sessionStorage.setItem(cacheKey, JSON.stringify({
-          periods: periods,
-          timestamp: Date.now()
-        }));
+                      <div className="mb-3"><Badge className={cn('border font-bold', danger.css)}>{danger.cls} - {danger.lvl}</Badge></div>
 
-        return periods;
-      } catch (error) {
-        console.error("Error fetching hourly forecast:", error);
-        throw new Error("Could not retrieve hourly forecast.");
+                      <div className="grid grid-cols-4 gap-3 text-sm">
+                        <div><div className="text-slate-500 text-xs mb-1">RH</div><p className="text-white font-semibold">{Math.round(s.humidity)}%</p></div>
+                        <div><div className="text-slate-500 text-xs mb-1">Wind</div><p className="text-white font-semibold">{Math.round(s.wind_speed)} mph</p>{s.wind_gust && (<p className="text-xs text-slate-400">G{Math.round(s.wind_gust)}</p>)}</div>
+                        <div><div className="text-slate-500 text-xs mb-1">KBDI</div><p className="text-white font-semibold">{s.kbdi}</p></div>
+                        <div><div className="text-slate-500 text-xs mb-1">AQI</div><p className="text-white font-semibold">{s.aqi}</p></div>
+                      </div>
+
+                      <div className="p-2 bg-slate-900/70 rounded border border-slate-700/30 font-mono text-xs mt-3">
+                        <p className="text-slate-300">Temp {Math.round(s.temperature)}°F | RH {Math.round(s.humidity)}% | Dew {Math.round(s.dew_point)}° | Wind {Math.round(s.wind_speed)} mph{s.wind_gust?` | Gust ${Math.round(s.wind_gust)}`:''} | KBDI {s.kbdi} | AQI {s.aqi}</p>
+                      </div>
+
+                      <div className="mt-3 pt-3 border-t border-slate-700/50"><p className="text-xs text-slate-500">Updated: {new Date(s.last_updated).toLocaleTimeString()}</p></div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        );
       }
-    }
 
-    async function fetchAlerts(){
-      const alertsPanel = $('alerts-panel');
-      alertsPanel.innerHTML = '<div class="text-gray-500">Fetching alerts…</div>'; 
+      function TrendsChart(){
+        const trendData = [
+          { date:'Mon', aqi:45, fires:0, temp:72 },
+          { date:'Tue', aqi:52, fires:1, temp:75 },
+          { date:'Wed', aqi:48, fires:1, temp:78 },
+          { date:'Thu', aqi:55, fires:2, temp:80 },
+          { date:'Fri', aqi:68, fires:3, temp:82 },
+          { date:'Sat', aqi:72, fires:2, temp:79 },
+          { date:'Sun', aqi:58, fires:1, temp:76 },
+        ];
 
-      try{
-        // Fetch active alerts for the WFO covering this area (LWX)
-        const r=await fetch(`https://api.weather.gov/alerts/active?area=${WFO_ID}`,{headers:{Accept:'application/geo+json'}});
-        const j=await r.json();
-        const feats = j?.features||[];
-
-        if(!feats.length){
-          alertsPanel.innerHTML = `<h3 class="text-lg font-bold text-gray-800 mb-2">Active Alerts (0)</h3><div class="text-gray-500">No active alerts reported for this area.</div>`;
-          return;
+        if (!hasRecharts) {
+          // Fallback: inline SVG area for AQI + bars for fires
+          const width = 900, height = 300, pad = 32;
+          const xs = i => pad + (i*(width-2*pad))/(trendData.length-1);
+          const aqiVals = trendData.map(d=>d.aqi);
+          const minA = Math.min(...aqiVals, 0), maxA = Math.max(...aqiVals, 80);
+          const yA = v => height-pad - ( (v-minA)/(maxA-minA||1) )*(height-2*pad);
+          const areaPath = trendData.map((d,i)=>`${i?'L':'M'}${xs(i)},${yA(d.aqi)}`).join(' ')+` L${xs(trendData.length-1)},${height-pad} L${xs(0)},${height-pad} Z`;
+          return (
+            <Card>
+              <CardHeader><CardTitle>7‑Day Trends (fallback)</CardTitle></CardHeader>
+              <CardContent>
+                <div className="text-xs text-slate-400 mb-2">Charts library blocked by network; rendering lightweight SVG instead.</div>
+                <div className="w-full overflow-x-auto">
+                  <svg width={width} height={height} role="img" aria-label="AQI and fires over 7 days">
+                    <rect x="0" y="0" width={width} height={height} fill="transparent" />
+                    <path d={areaPath} fill="#f9731655" stroke="#f97316" strokeWidth="2" />
+                    {trendData.map((d,i)=> (
+                      <rect key={i} x={xs(i)-8} y={height-pad- d.fires*20} width="16" height={d.fires*20} fill="#ef4444" opacity="0.8" />
+                    ))}
+                    {trendData.map((d,i)=> (
+                      <text key={'t'+i} x={xs(i)} y={height-6} fontSize="10" textAnchor="middle" fill="#94a3b8">{d.date}</text>
+                    ))}
+                  </svg>
+                </div>
+                <div className="mt-2 text-xs text-slate-500">Legend: orange area = AQI, red bars = fires</div>
+              </CardContent>
+            </Card>
+          );
         }
 
-        const alertItems = feats.map(f => {
-          const event = f?.properties?.event || 'Weather Alert';
-          const id = f?.id; 
-          const publicUrl = `https://alerts.weather.gov/cap/${id}`; // Link to NWS details
-          
-          return `<a href="${publicUrl}" target="_blank" class="block text-sm font-medium text-blue-600 hover:text-blue-700 transition truncate">${event}</a>`;
-        });
-
-        alertsPanel.innerHTML = `
-          <h3 class="text-lg font-bold text-gray-800 mb-2">Active Alerts (${feats.length})</h3>
-          <div class="space-y-1">
-            ${alertItems.slice(0, 5).join('')}
-            ${feats.length > 5 ? `<p class="text-xs text-gray-500 mt-1">... and ${feats.length - 5} more alerts. Click an alert above to view official NWS details.</p>` : ''}
-          </div>
-        `;
-
-      }catch(e){
-        console.error("Alerts fetching error:", e);
-        alertsPanel.innerHTML = `<h3 class="text-lg font-bold text-gray-800 mb-2">Active Alerts</h3><div class="text-red-700">Alerts unavailable due to an API error.</div>`;
-      }
-    }
-
-
-    /* -------------------------------------------------------------------------- */
-    /* MAP & STATE MANAGEMENT                                                     */
-    /* -------------------------------------------------------------------------- */
-    let map, markerGroup;
-    const countyDataMap = new Map();
-    let currentCounty = null;
-
-    function initializeMap() {
-      // Initialize map centered roughly on the six counties area (VA)
-      map = L.map('map', {
-        center: [37.1, -77.75], 
-        zoom: 9,
-        zoomControl: false // Disable default zoom control
-      });
-
-      // Add Tile Layer (OpenStreetMap)
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-      }).addTo(map);
-
-      markerGroup = L.layerGroup().addTo(map);
-      
-      processGeoJsonData();
-    }
-
-    function processGeoJsonData() {
-      const pointFeatures = geoJsonData.features.filter(f => f.geometry.type === 'Point');
-      const polygonFeature = geoJsonData.features.find(f => f.geometry.type === 'Polygon');
-      
-      // 1. Process Point Features (Counties) and create markers
-      pointFeatures.forEach(feature => {
-        const title = feature.properties.title;
-        const [lon, lat] = feature.geometry.coordinates;
-        
-        const county = {
-          id: countySlug(title),
-          title: title,
-          lat: lat.toFixed(5),
-          lon: lon.toFixed(5),
-          data: { t: '–', rh: '–', w: '–' } // Placeholder for weather data
-        };
-        countyDataMap.set(county.id, county);
-        
-        // Add Marker
-        const marker = L.marker([lat, lon]).addTo(markerGroup);
-        marker.bindPopup(`<b>${title} County</b><br>Click to view details`);
-        marker.on('click', () => selectCounty(county.id));
-      });
-
-      // 2. Add Polygon Feature (Area Boundary)
-      if (polygonFeature) {
-        L.geoJSON(polygonFeature, {
-          style: (feature) => ({
-            color: '#3b82f6', // blue-500
-            weight: 2,
-            opacity: 0.5,
-            fillOpacity: 0.1
-          })
-        }).addTo(map);
+        return (
+          <Card>
+            <CardHeader><CardTitle>7‑Day Trends</CardTitle></CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <AreaChart data={trendData}>
+                  <defs>
+                    <linearGradient id="colorAqi" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#f97316" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="colorFires" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.3} />
+                  <XAxis dataKey="date" stroke="#94a3b8" style={{ fontSize: '12px' }} />
+                  <YAxis stroke="#94a3b8" style={{ fontSize: '12px' }} />
+                  <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px', color: '#fff' }} />
+                  <Legend wrapperStyle={{ color: '#94a3b8', fontSize: '12px' }} />
+                  <Area type="monotone" dataKey="aqi" stroke="#f97316" fillOpacity={1} fill="url(#colorAqi)" name="Air Quality Index" />
+                  <Area type="monotone" dataKey="fires" stroke="#ef4444" fillOpacity={1} fill="url(#colorFires)" name="Active Fires" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        );
       }
 
-      // 3. Initial Data Load
-      loadAllCountyData(pointFeatures);
-    }
-    
-    // Handles clicking a marker or a county card
-    function selectCounty(countyId) {
-        const county = countyDataMap.get(countyId);
-        if (!county) return;
-
-        currentCounty = county;
-        
-        // Update Detail Card
-        $('county-title').textContent = county.title;
-        updateDetailCard(county.data);
-
-        // Open the corresponding marker's popup on the map
-        markerGroup.eachLayer(layer => {
-            if (layer.getLatLng().lat.toFixed(5) == county.lat && layer.getLatLng().lng.toFixed(5) == county.lon) {
-                layer.openPopup();
-            }
-        });
-
-        // Update Grid Card Style (to show selection)
-        renderCountyGrid();
-    }
-    
-    function updateDetailCard(data) {
-        $('detail-t').textContent = data.t;
-        $('detail-rh').textContent = data.rh;
-        $('detail-w').textContent = data.w;
-        
-        const danger = getFireDanger(data.t, data.rh, data.w);
-        const badge = $('detail-badge');
-        badge.textContent = danger.label;
-        // Dynamically update Tailwind classes based on danger level
-        badge.className = `mt-2 badge ${danger.classes}`; 
-    }
-
-    async function loadCountyData(county, force = false) {
-      try {
-        const periods = await getHourly(county.lat, county.lon, { force });
-        const now = periods[0] || {};
-        
-        county.data = {
-          t: (now.temperature != null ? `${now.temperature}°${now.temperatureUnit}` : '–'),
-          rh: (now.relativeHumidity?.value != null ? `${Math.round(now.relativeHumidity.value)}%` : '–'),
-          w: (now.windSpeed || '–')
-        };
-      } catch (error) {
-        console.error(`Error loading data for ${county.title}:`, error);
-        // Fallback data structure on error
-        county.data = { t: '–', rh: '–', w: '–' };
-      }
-      
-      // If this county is currently selected, update the detail view
-      if (currentCounty && currentCounty.id === county.id) {
-          updateDetailCard(county.data);
-      }
-      
-      // Update the county grid card
-      renderCountyGrid();
-    }
-    
-    function loadAllCountyData(features) {
-        features.forEach(f => {
-            const id = countySlug(f.properties.title);
-            const county = countyDataMap.get(id);
-            if (county) {
-                // Kick off the data fetch for each county
-                loadCountyData(county);
-            }
-        });
-    }
-
-    /* -------------------------------------------------------------------------- */
-    /* GRID RENDERING                                                             */
-    /* -------------------------------------------------------------------------- */
-    function renderCountyGrid() {
-      const gridContainer = $('county-grid');
-      gridContainer.innerHTML = '';
-      
-      countyDataMap.forEach(county => {
-        const danger = getFireDanger(county.data.t, county.data.rh, county.data.w);
-        
-        const isSelected = currentCounty && currentCounty.id === county.id;
-        
-        const card = document.createElement('div');
-        card.className = `p-3 rounded-lg border-2 transition-all cursor-pointer ${
-            isSelected ? 'border-blue-500 bg-blue-50/50 shadow-md' : 'border-gray-100 hover:border-blue-200'
-        }`;
-        card.onclick = () => selectCounty(county.id);
-
-        card.innerHTML = `
-          <div class="text-sm font-semibold text-gray-800 truncate mb-1">${county.title}</div>
-          <div class="text-xs space-y-1">
-            <div class="flex justify-between items-center">
-                <span class="text-gray-500">T:</span>
-                <span class="font-bold text-gray-900 num">${county.data.t}</span>
+      function NWSAlertBanner({ alerts }){
+        if(!alerts?.length){
+          return (
+            <div className="rounded-lg border-2 border-green-500/30 bg-green-500/10 p-4">
+              <div className="flex items-center gap-3">
+                <div className="text-green-400 text-xl">✅</div>
+                <div>
+                  <h3 className="text-green-400 font-bold">NWS Alert Status: All Clear</h3>
+                  <p className="text-slate-300 text-sm mt-1">No active fire weather alerts for AKQ (Wakefield) counties</p>
+                </div>
+              </div>
             </div>
-            <div class="flex justify-between items-center">
-                <span class="text-gray-500">RH:</span>
-                <span class="font-bold text-gray-900 num">${county.data.rh}</span>
-            </div>
+          );
+        }
+        return (
+          <div className="space-y-4">
+            {alerts.map((a)=>{
+              const isRedFlag = a.alert_type?.toLowerCase().includes('red flag');
+              const isFW = a.alert_type?.toLowerCase().includes('fire weather');
+              const wrap = cn('rounded-lg border-2 p-4 backdrop-blur-sm', isRedFlag? 'bg-red-500/10 border-red-500/50 shadow-lg shadow-red-500/20' : isFW? 'bg-orange-500/10 border-orange-500/50' : 'bg-yellow-500/10 border-yellow-500/50');
+              return (
+                <div key={a.id} className={wrap}>
+                  <div className="flex items-start gap-3">
+                    <div className={cn('text-xl', isRedFlag? 'text-red-400':'text-orange-400')}>{isRedFlag?'⚠️':'ℹ️'}</div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <h3 className={cn('font-bold text-lg', isRedFlag? 'text-red-400':'text-orange-400')}>🚨 {a.alert_type}</h3>
+                        <Badge className={cn(a.severity==='Extreme'?'bg-purple-500/20 text-purple-400': a.severity==='Severe'?'bg-red-500/20 text-red-400':'bg-orange-500/20 text-orange-400')}>{a.severity}</Badge>
+                      </div>
+                      <p className="text-slate-300 text-sm mb-3"><strong>{a.headline}</strong></p>
+                      {a.description && <p className="text-slate-400 text-sm mb-3">{a.description}</p>}
+                      {a.instruction && (
+                        <div className="p-3 bg-slate-900/50 rounded-lg border border-slate-700/50 mb-3">
+                          <p className="text-xs text-slate-500 uppercase font-semibold mb-1">Instructions</p>
+                          <p className="text-sm text-slate-300">{a.instruction}</p>
+                        </div>
+                      )}
+                      {!!a.affected_zones?.length && (
+                        <div className="flex gap-2 flex-wrap mb-2">
+                          {a.affected_zones.map((z,i)=> <Badge key={i} className="border border-slate-600/50 text-xs bg-slate-800/50">{z}</Badge>)}
+                        </div>
+                      )}
+                      <div className="flex gap-4 text-xs text-slate-500 mt-2">
+                        {a.onset && <span>Starts: {new Date(a.onset).toLocaleString()}</span>}
+                        {a.expires && <span>Expires: {new Date(a.expires).toLocaleString()}</span>}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-          <div class="mt-2 badge ${danger.classes} text-center w-full justify-center">
-            ${danger.label}
+        );
+      }
+
+      function FireWeatherPanel({ fireWeather, drought }){
+        const danger = fireWeather?.fire_danger_rating || 'Low';
+        return (
+          <div className="space-y-6">
+            <Card className={cn('border-2', fireWeather?.red_flag_warning? 'border-red-500/50 shadow-lg shadow-red-500/20' : 'border-slate-700/50')}>
+              <CardHeader><CardTitle>Fire Weather Outlook</CardTitle></CardHeader>
+              <CardContent className="space-y-4">
+                {fireWeather?.red_flag_warning && (
+                  <div className="p-4 bg-red-500/10 border-2 border-red-500/50 rounded-lg">
+                    <div className="flex items-center gap-2 text-red-400 font-bold mb-2">⚠️ RED FLAG WARNING ACTIVE</div>
+                    <p className="text-sm text-slate-300">Critical fire weather conditions exist. Avoid any outdoor burning.</p>
+                  </div>
+                )}
+                <div className="text-center py-2">
+                  <p className="text-slate-400 text-sm mb-2">Current Fire Danger</p>
+                  <Badge className={cn('text-2xl font-bold px-6 py-2 border', DANGER_STYLES[danger])}>{danger}</Badge>
+                </div>
+                {typeof fireWeather?.burning_index==='number' && (
+                  <div>
+                    <div className="flex justify-between text-sm mb-2"><span className="text-slate-400">Burning Index</span><span className="text-white font-semibold">{fireWeather.burning_index}</span></div>
+                    <Progress value={Math.min(fireWeather.burning_index, 100)} />
+                  </div>
+                )}
+                <div className="grid grid-cols-3 gap-3 text-sm">
+                  {typeof fireWeather?.ten_hour_fuel_moisture==='number' && (<div><p className="text-slate-500 text-xs">10‑hr Fuel</p><p className="text-white font-semibold">{fireWeather.ten_hour_fuel_moisture}%</p></div>)}
+                  {typeof fireWeather?.hundred_hour_fuel_moisture==='number' && (<div><p className="text-slate-500 text-xs">100‑hr Fuel</p><p className="text-white font-semibold">{fireWeather.hundred_hour_fuel_moisture}%</p></div>)}
+                  {typeof fireWeather?.kbdi==='number' && (<div><p className="text-slate-500 text-xs">KBDI</p><p className="text-white font-semibold">{fireWeather.kbdi}</p></div>)}
+                </div>
+                {fireWeather?.forecast_text && (<div className="mt-2 p-3 bg-slate-900/50 rounded-lg border border-slate-700/50"><p className="text-xs text-slate-400 mb-1">Forecast</p><p className="text-sm text-slate-300">{fireWeather.forecast_text}</p></div>)}
+                <div className="text-xs text-slate-500 pt-2 border-t border-slate-700/50">Data from WFAS & National Weather Service</div>
+              </CardContent>
+            </Card>
+            {drought && (
+              <Card>
+                <CardHeader><CardTitle>Drought Status</CardTitle></CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="text-center"><p className="text-slate-400 text-sm mb-2">Current Classification</p><Badge className="text-lg font-bold px-4 py-2 bg-amber-500/20 text-amber-400 border-amber-500/30">{drought.drought_level || 'Normal'}</Badge></div>
+                  {typeof drought.percent_area_affected==='number' && (
+                    <div>
+                      <div className="flex justify-between text-sm mb-2"><span className="text-slate-400">Area Affected</span><span className="text-white font-semibold">{drought.percent_area_affected}%</span></div>
+                      <Progress value={drought.percent_area_affected} />
+                    </div>
+                  )}
+                  {drought.conditions_summary && (<div className="p-3 bg-slate-900/50 rounded-lg border border-slate-700/50"><p className="text-sm text-slate-300">{drought.conditions_summary}</p></div>)}
+                  {drought.impacts && (<div className="p-3 bg-amber-500/5 rounded-lg border border-amber-500/20"><p className="text-xs text-slate-400 mb-1">Impacts</p><p className="text-sm text-slate-300">{drought.impacts}</p></div>)}
+                  <div className="text-xs text-slate-500 pt-3 border-t border-slate-700/50">Data from US Drought Monitor</div>
+                </CardContent>
+              </Card>
+            )}
           </div>
-        `;
-        gridContainer.appendChild(card);
-      });
-    }
+        );
+      }
 
+      function ThemeToggle(){
+        const [theme, setTheme] = useState('dark');
+        useEffect(()=>{ const saved = localStorage.getItem('theme') || 'dark'; setTheme(saved); document.documentElement.classList.toggle('dark', saved==='dark'); },[]);
+        const toggle = () => { const next = theme==='dark'?'light':'dark'; setTheme(next); localStorage.setItem('theme', next); document.documentElement.classList.toggle('dark', next==='dark'); };
+        return (
+          <button title={`Switch to ${theme==='dark'?'light':'dark'} mode`} onClick={toggle} className="fixed top-4 right-4 z-50 bg-slate-800/95 border border-slate-700/50 hover:bg-slate-700 rounded-lg px-3 py-2">{theme==='dark'?'🌞':'🌙'}</button>
+        );
+      }
 
-    /* -------------------------------------------------------------------------- */
-    /* INITIAL SETUP RUN                                                          */
-    /* -------------------------------------------------------------------------- */
-    window.onload = function() {
-        // Initializes the Leaflet map
-        initializeMap(); 
-        
-        // Fetches and displays NWS alerts
-        fetchAlerts();
-        
-        // Initial render of the grid (will populate as data arrives)
-        renderCountyGrid();
-    }
-  </script>
-</body>
-</html>
+      function ExternalLinksBar(){
+        const linkBtn = 'inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-700/60 bg-slate-800/60 hover:bg-slate-700/60 text-sm';
+        return (
+          <div className="flex flex-wrap gap-3">
+            <a className={linkBtn} href="https://firms.modaps.eosdis.nasa.gov/active_fire/" target="_blank" rel="noopener noreferrer">🔥 NASA FIRMS</a>
+            <a className={linkBtn} href="https://www.weather.gov/akq/" target="_blank" rel="noopener noreferrer">🏛️ NWS Wakefield (AKQ)</a>
+            <a className={linkBtn} href="https://www.windy.com/?37.09,-77.68,8" target="_blank" rel="noopener noreferrer">🟢 Windy</a>
+          </div>
+        );
+      }
+
+      function MapHotspots({ hotspots }){
+        const mapRef = useRef(null);
+        const mapObj = useRef(null);
+        const markers = useRef(null);
+        useEffect(()=>{
+          if (!window.L) return; // Leaflet not loaded
+          if (!mapObj.current && mapRef.current) {
+            const center = [37.09, -77.68];
+            mapObj.current = L.map(mapRef.current).setView(center, 9);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' }).addTo(mapObj.current);
+            markers.current = L.layerGroup().addTo(mapObj.current);
+          }
+          if (!mapObj.current || !markers.current) return;
+          // Clear and redraw
+          markers.current.clearLayers();
+          const colorFor = (c)=> c==='high'? '#ef4444' : c==='nominal'? '#f59e0b' : '#94a3b8';
+          hotspots.forEach(h=>{
+            const marker = L.circleMarker([h.lat,h.lng], { radius: 5.5, color: colorFor(h.confidence), fillColor: colorFor(h.confidence), fillOpacity: 0.9, weight: 1});
+            marker.bindPopup(`<strong>${h.satellite||'FIRMS'}</strong><br/>Confidence: ${h.confidence}${h.frp?`<br/>FRP: ${h.frp} MW`:''}${h.acq_date?`<br/>${h.acq_date} ${h.acq_time||''}`:''}`);
+            marker.addTo(markers.current);
+          });
+          return ()=>{};
+        }, [hotspots]);
+        return (
+          <Card className="overflow-hidden">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Hotspots Map (Last 24h)</CardTitle>
+                <span className="text-xs text-slate-400">NASA FIRMS / OSM</span>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div ref={mapRef} style={{height:'360px', width:'100%', borderRadius:'0.75rem'}} className="border border-slate-700/50" />
+              <div className="flex items-center gap-3 mt-3 text-xs">
+                <span className="inline-flex items-center gap-1"><span className="w-3 h-3 rounded-full" style={{background:'#ef4444'}}></span> High</span>
+                <span className="inline-flex items-center gap-1"><span className="w-3 h-3 rounded-full" style={{background:'#f59e0b'}}></span> Nominal</span>
+                <span className="inline-flex items-center gap-1"><span className="w-3 h-3 rounded-full" style={{background:'#94a3b8'}}></span> Low</span>
+              </div>
+              <div className="mt-3">
+                <WindyEmbed />
+              </div>
+            </CardContent>
+          </Card>
+        );
+      }
+
+      function WindyEmbed(){
+        const src = 'https://www.windy.com/?temp,37.09,-77.68,8';
+        return (
+          <div className="rounded-lg overflow-hidden border border-slate-700/50">
+            <iframe title="Windy" src={src} width="100%" height="300" loading="lazy"></iframe>
+          </div>
+        );
+      }
+
+      /* ------------------ App Shell ------------------ */
+      function App(){
+        const { lastUpdate, isRefreshing, refres
