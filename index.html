@@ -608,37 +608,6 @@
             if (layer instanceof L.CircleMarker) toRemove.push(layer);
           });
           toRemove.forEach(l => mapObj.current.removeLayer(l));
-          const colorFor = (c)=> c==='high'? '#ef4444' : c==='nominal'? '#f59e0b' : '#94a3b8';
-          hotspots.forEach(h=>{
-            const marker = L.circleMarker([h.lat,h.lng], { radius: 5.5, color: colorFor(h.confidence), fillColor: colorFor(h.confidence), fillOpacity: 0.9, weight: 1});
-            marker.bindPopup(`<strong>${h.satellite||'FIRMS'}</strong><br/>Confidence: ${h.confidence}${h.frp?`<br/>FRP: ${h.frp} MW`:''}${h.acq_date?`<br/>${h.acq_date} ${h.acq_time||''}`:''}`);
-            marker.addTo(mapObj.current);
-          });
-          return ()=>{};
-        }, [hotspots]);
-        return (
-          <Card className="overflow-hidden">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Hotspots Map (Last 24h)</CardTitle>
-                <span className="text-xs text-slate-400">NASA FIRMS / OSM</span>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div ref={mapRef} style={{height:'360px', width:'100%', borderRadius:'0.75rem'}} className="border border-slate-700/50" />
-              <div className="flex items-center gap-3 mt-3 text-xs">
-                <span className="inline-flex items-center gap-1"><span className="w-3 h-3 rounded-full" style={{background:'#ef4444'}}></span> High</span>
-                <span className="inline-flex items-center gap-1"><span className="w-3 h-3 rounded-full" style={{background:'#f59e0b'}}></span> Nominal</span>
-                <span className="inline-flex items-center gap-1"><span className="w-3 h-3 rounded-full" style={{background:'#94a3b8'}}></span> Low</span>
-              </div>
-              <div className="mt-3">
-                <WindyEmbed />
-              </div>
-            </CardContent>
-          </Card>
-        );
-      }
-
       function WindyEmbed(){
         const src = 'https://www.windy.com/?temp,37.09,-77.68,8';
         return (
@@ -647,23 +616,64 @@
           </div>
         );
       }
-          const colorFor = (c)=> c==='high'? '#ef4444' : c==='nominal'? '#f59e0b' : '#94a3b8';
-          hotspots.forEach(h=>{
-            const marker = L.circleMarker([h.lat,h.lng], { radius: 6, color: colorFor(h.confidence), fillColor: colorFor(h.confidence), fillOpacity: 0.9, weight: 1});
-            marker.bindPopup(`<strong>${h.satellite||'FIRMS'}</strong><br/>Confidence: ${h.confidence}`);
-            marker.addTo(mapObj.current);
-          });
-          return ()=>{};
-        }, [hotspots]);
+
+      /* ------------------ App Shell ------------------ */
+      function App(){
+        const { lastUpdate, isRefreshing, refresh, airQuality, incidents, stations, fireWeather, drought, alerts, hotspots } = useMockData();
         return (
-          <Card className="overflow-hidden">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Hotspots Map</CardTitle>
-                <span className="text-xs text-slate-400">Leaflet / OSM</span>
+          <div className="min-h-screen p-4 md:p-8">
+            <ThemeToggle />
+            <div className="max-w-7xl mx-auto space-y-6">
+              <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                  <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">Five Forks Fire Weather Dashboard</h1>
+                  <p className="text-slate-400">Real-time monitoring from 11 regional weather stations</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="text-right">
+                    <p className="text-xs text-slate-500">Last updated</p>
+                    <p className="text-sm text-slate-300 font-medium">{timeSince(lastUpdate)}</p>
+                  </div>
+                  <Button onClick={refresh} disabled={isRefreshing}>🔄 Refresh</Button>
+                </div>
+              </header>
+
+              <ExternalLinksBar />
+
+              <NWSAlertBanner alerts={alerts} />
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <MetricsCard title="Active Fires" value={incidents?.length || 0} status={(incidents?.length||0)>0?'danger':'good'} description="Within ~120 miles" />
+                <MetricsCard title="Temperature" value={airQuality?.temperature ?? '--'} unit="°F" status={airQuality && airQuality.temperature>85?'warning':'good'} description="Regional average" />
+                <MetricsCard title="Wind Speed" value={airQuality?.wind_speed ?? '--'} unit="mph" status={airQuality && airQuality.wind_speed>15?'warning':'good'} description={airQuality?.wind_direction || 'N/A'} />
+                <MetricsCard title="Humidity" value={airQuality?.humidity ?? '--'} unit="%" status={airQuality && airQuality.humidity<30?'warning':'good'} />
               </div>
-            </CardHeader>
-            <CardContent>
-              <div ref={mapRef} style={{height:'360px', width:'100%', borderRadius:'0.75rem'}} className="border border-slate-700/50" />
-              <div className="flex items-center gap-3 mt-3 text-xs">
-                <span className="inline-fl
+
+              <div className="grid lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 space-y-6">
+                  <ActiveAlerts incidents={incidents} />
+                  <MapHotspots hotspots={hotspots} />
+                </div>
+                <div className="space-y-6">
+                  <AirQualityCard data={airQuality} />
+                  <FireWeatherPanel fireWeather={fireWeather} drought={drought} />
+                </div>
+              </div>
+
+              <TrendsChart />
+
+              <div className="rounded-xl border border-slate-700/50 bg-slate-800/30 p-4">
+                <Diagnostics />
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      /* ------------------ Mount ------------------ */
+      const root = ReactDOM.createRoot(document.getElementById('root'));
+      console.assert(!!root, 'Root mount failed');
+      root.render(<App />);
+    </script>
+  </body>
+</html>
