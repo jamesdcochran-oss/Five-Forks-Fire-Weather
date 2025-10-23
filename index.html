@@ -1,36 +1,511 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Custom Fire Dashboard</title>
-  <link rel="stylesheet" href="your-style.css">
-  <!-- Add Leaflet CSS if using maps -->
-</head>
-<body>
-  <header>
-    <h1>Five Forks Fire Dashboard</h1>
-    <p class="subtitle">Quick wildfire monitoring tool</p>
-  </header>
-  <section id="control-panel">
-    <button id="theme-toggle">Toggle Theme</button>
-    <button id="refresh">Refresh</button>
-    <a href="https://fire.airnow.gov/" target="_blank">AirNow Map</a>
-    <!-- Add other quick links here -->
-  </section>
-  <aside id="info-panel">
-    <h2>Counties Info</h2>
-    <div id="county-data">
-      <!-- Weather/fire/30-30-30 crossover info -->
-    </div>
-  </aside>
-  <main id="map-section">
-    <!-- Leaflet map will go here -->
-    <div id="map"></div>
-  </main>
-  <footer>
-    <small>Links: NWS | NASA FIRMS | AirNow</small>
-    <small>Last updated: <span id="update-time"></span></small>
-  </footer>
-  <script src="your-script.js"></script>
-  <!-- Add Leaflet JS if using maps -->
-</body>
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Five Forks Fire Weather — Live</title>
+
+    <!-- Tailwind (CDN) -->
+    <script>
+      // Keep Tailwind classes used dynamically from being purged
+      window.tailwind = {
+        darkMode: 'class',
+        config: {
+          safelist: [
+            'bg-green-500/20','text-green-400','border-green-500/30',
+            'bg-yellow-500/20','text-yellow-400','border-yellow-500/30',
+            'bg-orange-500/20','text-orange-400','border-orange-500/30',
+            'bg-red-500/20','text-red-400','border-red-500/30',
+            'bg-purple-500/20','text-purple-400','border-purple-500/30',
+            'bg-slate-700/40','text-slate-200','border-slate-700/50'
+          ]
+        }
+      };
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- React / ReactDOM UMD (kept small & reliable) -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+    <!-- Babel for inline JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- OPTIONAL Recharts UMD (app renders without it) -->
+    <script src="https://unpkg.com/recharts@2.8.0/umd/Recharts.min.js"></script>
+
+    <!-- Leaflet (map) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+      html, body, #root { height: 100%; }
+      body { margin: 0; }
+    </style>
+  </head>
+  <body class="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-slate-100">
+    <div id="root"></div>
+
+    <script type="text/babel" data-presets="env,react">
+      const { useState, useEffect, useRef } = React;
+
+      /* ------------------------------------------------------------------ */
+      /* Error Boundary (prevents blank page when a widget crashes)          */
+      /* ------------------------------------------------------------------ */
+      class ErrorBoundary extends React.Component {
+        constructor(p){ super(p); this.state = { error: null }; }
+        static getDerivedStateFromError(error){ return { error }; }
+        componentDidCatch(err, info){ console.error('ErrorBoundary caught', err, info); }
+        render(){
+          if (this.state.error) {
+            return (
+              <div className="max-w-2xl mx-auto p-4 mt-6 rounded-xl border border-red-500/40 bg-red-500/10">
+                <h2 className="text-red-300 font-bold mb-2">UI crashed</h2>
+                <pre className="text-xs text-red-200 whitespace-pre-wrap">{String(this.state.error?.message || this.state.error)}</pre>
+                <p className="text-xs text-slate-300 mt-2">Open the browser console for more details. The dashboard keeps running.</p>
+              </div>
+            );
+          }
+          return this.props.children;
+        }
+      }
+
+      /* ------------------------------------------------------------------ */
+      /* UI Primitives                                                       */
+      /* ------------------------------------------------------------------ */
+      const cn = (...a) => a.filter(Boolean).join(' ');
+      const Card = ({ className, children }) => (
+        <div className={cn('rounded-xl border bg-slate-800/50 border-slate-700/50 backdrop-blur-sm', className)}>{children}</div>
+      );
+      const CardHeader = ({ className, children }) => <div className={cn('px-4 pt-4 pb-2', className)}>{children}</div>;
+      const CardTitle = ({ className, children }) => <h3 className={cn('text-white font-semibold text-base', className)}>{children}</h3>;
+      const CardContent = ({ className, children }) => <div className={cn('px-4 pb-4', className)}>{children}</div>;
+      const Badge = ({ className, children }) => (
+        <span className={cn('inline-flex items-center rounded-md px-2 py-1 text-xs font-medium bg-slate-700/40 text-slate-200', className)}>{children}</span>
+      );
+      const Button = ({ className, children, ...props }) => (
+        <button {...props} className={cn('inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-60', className)}>{children}</button>
+      );
+
+      /* ------------------------------------------------------------------ */
+      /* Fire danger heuristic (30/30/30 & crossover variant) + tests        */
+      /* ------------------------------------------------------------------ */
+      const THRESH = { tempF: 86, rh: 30, windMph: 19 }; // standard 30/30/30 rule of thumb
+      function calcDanger(rh, wind, tempF){
+        const h = Number.isFinite(rh) ? rh : parseFloat(rh);
+        const w = Number.isFinite(wind) ? wind : parseFloat(wind);
+        const t = Number.isFinite(tempF) ? tempF : parseFloat(tempF);
+        if (![h,w,t].every(Number.isFinite)) return { lvl: 'Low', css: 'bg-slate-700/40 text-slate-200 border-slate-700/50' };
+        const tOK = t >= THRESH.tempF;
+        const hOK = h <= THRESH.rh;
+        const wOK = w >= THRESH.windMph;
+        const passes = [tOK,hOK,wOK].filter(Boolean).length;
+        if (tOK && hOK && wOK) return { lvl: 'Extreme', css: 'bg-purple-500/20 text-purple-400 border-purple-500/30' };
+        if (passes >= 2)       return { lvl: 'Very High', css: 'bg-red-500/20 text-red-400 border-red-500/30' };
+        if (passes === 1)      return { lvl: 'High', css: 'bg-orange-500/20 text-orange-400 border-orange-500/30' };
+        if ((h <= 35 && w >= 10) || t >= 80) return { lvl: 'Moderate', css: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' };
+        return { lvl: 'Low', css: 'bg-green-500/20 text-green-400 border-green-500/30' };
+      }
+
+      // Mini unit tests render to console AND to a small banner so we know things run
+      function UnitTests(){
+        const cases = [
+          { name:'All below', in:[40, 5, 70], out:'Low' },
+          { name:'Crossover', in:[34, 12, 82], out:'Moderate' },
+          { name:'One pass', in:[50, 22, 70], out:'High' },
+          { name:'Two pass', in:[28, 21, 70], out:'Very High' },
+          { name:'All pass', in:[20, 22, 90], out:'Extreme' },
+        ];
+        const results = cases.map(tc=>({
+          ...tc,
+          got: calcDanger(...tc.in).lvl,
+        }));
+        const allPass = results.every(r=>r.got===r.out);
+        console.table(results);
+        return (
+          <div className={cn('rounded-lg px-3 py-2 text-xs border', allPass? 'bg-green-500/10 text-green-300 border-green-500/30':'bg-red-500/10 text-red-300 border-red-500/30')}>
+            Unit tests: {allPass? 'all passed' : 'FAILED — check console'}
+          </div>
+        );
+      }
+
+      /* ------------------------------------------------------------------ */
+      /* Data loader: NWS (hourly) + FIRMS (CSV 24h) + NWS Alerts            */
+      /* ------------------------------------------------------------------ */
+      function useLiveData(){
+        const [lastUpdate, setLastUpdate] = useState(new Date());
+        const [isRefreshing, setIsRefreshing] = useState(false);
+        const [alerts, setAlerts] = useState([]);
+        const [hotspots, setHotspots] = useState([]);
+        const [stations, setStations] = useState([]);
+        const [agg, setAgg] = useState(null); // aggregate metrics
+
+        // Target counties
+        const counties = [
+          { id:'dinwiddie', name:'Dinwiddie', lat:37.02153, lon:-77.60261 },
+          { id:'amelia', name:'Amelia', lat:37.32646, lon:-77.99537 },
+          { id:'nottoway', name:'Nottoway', lat:37.14824, lon:-78.03382 },
+          { id:'brunswick', name:'Brunswick', lat:36.78112, lon:-77.85049 },
+          { id:'greensville', name:'Greensville', lat:36.64130, lon:-77.56347 },
+          { id:'prince_george', name:'Prince George', lat:37.18810, lon:-77.18101 },
+        ];
+
+        const parseWind = (s)=>{ // "5 to 10 mph", "12 mph"
+          if(!s) return { speed:null, dir:null };
+          const m = s.match(/(\d+)(?=\s*mph)/);
+          const dir = (s.match(/[NSEW]{1,2}/)||[])[0] || null;
+          return { speed: m? parseInt(m[1],10) : null, dir };
+        };
+
+        async function hourly(lat, lon){
+          const pr = await fetch(`https://api.weather.gov/points/${lat},${lon}`, { headers:{ Accept:'application/geo+json' } });
+          if(!pr.ok) throw new Error('points');
+          const pj = await pr.json();
+          const url = pj?.properties?.forecastHourly;
+          if(!url) throw new Error('hourly URL');
+          const fr = await fetch(url, { headers:{ Accept:'application/geo+json' }, cache:'no-store' });
+          if(!fr.ok) throw new Error('hourly fetch');
+          const fj = await fr.json();
+          return fj?.properties?.periods?.[0] || null;
+        }
+
+        const load = async ()=>{
+          // 1) Alerts for VA/NC/MD; prefer items mentioning AKQ/Wakefield or fire weather
+          try {
+            const r = await fetch('https://api.weather.gov/alerts/active?area=VA,NC,MD', { headers:{ Accept:'application/geo+json' } });
+            if(r.ok){
+              const j = await r.json();
+              const feats = j.features || [];
+              const mapped = feats.map(f=>({
+                id: f.id,
+                event: f.properties?.event,
+                severity: f.properties?.severity,
+                headline: f.properties?.headline,
+                desc: f.properties?.description,
+                instr: f.properties?.instruction,
+                onset: f.properties?.onset,
+                expires: f.properties?.expires,
+              }));
+              const filtered = mapped.filter(a=>/fire weather|red flag/i.test(a.event||'') || /AKQ|Wakefield/i.test(a.headline||''));
+              setAlerts(filtered.length? filtered : mapped.slice(0,5));
+            }
+          } catch(e){ console.warn('alerts failed', e); }
+
+          // 2) County hourly snapshot & aggregate
+          try {
+            const rows = await Promise.all(counties.map(async c=>{
+              try {
+                const p = await hourly(c.lat, c.lon);
+                const { speed } = parseWind(p?.windSpeed);
+                return {
+                  id: c.id,
+                  name: c.name,
+                  temperature: (typeof p?.temperature === 'number') ? p.temperature : null,
+                  humidity: Math.round(p?.relativeHumidity?.value ?? NaN),
+                  wind: speed,
+                };
+              } catch(_) {
+                return { id:c.id, name:c.name, temperature:null, humidity:null, wind:null };
+              }
+            }));
+            setStations(rows);
+            const nums = (k)=> rows.map(r=>r[k]).filter(v=>typeof v==='number'&&isFinite(v));
+            const avg = (a)=> a.length? Math.round(a.reduce((s,v)=>s+v,0)/a.length) : null;
+            const t = avg(nums('temperature'));
+            const h = avg(nums('humidity'));
+            const w = avg(nums('wind'));
+            setAgg({ t,h,w, danger: calcDanger(h,w,t).lvl });
+          } catch(e){ console.warn('hourly failed', e); }
+
+          // 3) FIRMS hotspots (VIIRS + MODIS, 24h, bbox around the counties)
+          try {
+            const center = { lat: 37.09, lon: -77.68 };
+            const pad = 2.0; // ~bbox radius deg
+            const inBBox = (lat, lon) => lat>(center.lat-pad)&&lat<(center.lat+pad)&&lon>(center.lon-pad)&&lon<(center.lon+pad);
+            const parseCSV = (txt)=>{ const norm = txt.replace(/^\uFEFF/, '').replace(/\r\n?/g,'\n').trim(); const [h,...ls] = norm.split('\n'); const keys = h.split(','); return ls.filter(Boolean).map(l=>{ const cells = l.split(','); const o={}; keys.forEach((k,i)=>o[k]=cells[i]); return o; }); };
+            const sources=[
+              { url:'https://firms.modaps.eosdis.nasa.gov/active_fire/c2/csv/VIIRS_C2_USA_contiguous_and_Hawaii_24h.csv', sat:'VIIRS' },
+              { url:'https://firms.modaps.eosdis.nasa.gov/active_fire/c6.1/csv/MODIS_C6_1_USA_contiguous_and_Hawaii_24h.csv', sat:'MODIS' },
+            ];
+            const all=[];
+            for (const s of sources){
+              try{
+                const r = await fetch(s.url, { cache:'no-store' });
+                if(!r.ok) continue; const text = await r.text(); const rows = parseCSV(text);
+                rows.forEach(row=>{
+                  const lat = parseFloat(row.latitude), lon = parseFloat(row.longitude);
+                  if(!Number.isFinite(lat)||!Number.isFinite(lon)) return; if(!inBBox(lat,lon)) return;
+                  const conf = (row.confidence_text || row.confidence || '').toLowerCase();
+                  const norm = /high/.test(conf)? 'high' : /nominal|medium|med/.test(conf)? 'nominal' : 'low';
+                  all.push({ lat, lng: lon, confidence: norm, satellite: s.sat, acq_date: row.acq_date, acq_time: row.acq_time, frp: parseFloat(row.frp)||undefined });
+                });
+              }catch(_){ /* keep going */ }
+            }
+            setHotspots(all);
+          } catch(e){ console.warn('FIRMS failed', e); }
+
+          setLastUpdate(new Date());
+        };
+
+        useEffect(()=>{ load(); const id = setInterval(load, 15*60*1000); return ()=>clearInterval(id); },[]);
+        const refresh = async()=>{ setIsRefreshing(true); await load(); setIsRefreshing(false); };
+        return { lastUpdate, isRefreshing, refresh, alerts, hotspots, stations, agg };
+      }
+
+      /* ------------------------------------------------------------------ */
+      /* Map (Leaflet) + Hotspots                                           */
+      /* ------------------------------------------------------------------ */
+      function MapHotspots({ hotspots }){
+        const ref = useRef(null);
+        const map = useRef(null);
+        const layer = useRef(null);
+        const [err, setErr] = useState(null);
+        useEffect(()=>{
+          try{
+            if (!window.L) { setErr('Leaflet library not loaded'); return; }
+            if (!map.current && ref.current) {
+              const center = [37.09, -77.68];
+              map.current = L.map(ref.current).setView(center, 9);
+              L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' }).addTo(map.current);
+              layer.current = L.layerGroup().addTo(map.current);
+            }
+            if (!map.current || !layer.current) return;
+            layer.current.clearLayers();
+            const colorFor = (c)=> c==='high'? '#ef4444' : c==='nominal'? '#f59e0b' : '#94a3b8';
+            hotspots.forEach(h=>{
+              const m = L.circleMarker([h.lat,h.lng], { radius: 5.5, color: colorFor(h.confidence), fillColor: colorFor(h.confidence), fillOpacity: 0.9, weight: 1});
+              const popup = '<strong>'+ (h.satellite||'FIRMS') +'</strong><br/>'+
+                            'Confidence: '+ (h.confidence||'-') + (h.frp? ('<br/>FRP: '+h.frp+' MW') : '') + (h.acq_date? ('<br/>' + h.acq_date + ' ' + (h.acq_time||'')) : '');
+              m.bindPopup(popup); m.addTo(layer.current);
+            });
+          }catch(e){ console.error(e); setErr('Map render error'); }
+        }, [hotspots]);
+        return (
+          <div>
+            {err && <div className="mb-2 rounded border border-yellow-500/30 bg-yellow-500/10 text-yellow-200 text-xs px-2 py-1\">{err}</div>}
+            <div ref={ref} style={{height:'360px'}} className="w-full rounded-lg border border-slate-700/50\" />
+          </div>
+        );
+      }
+
+      /* ------------------------------------------------------------------ */
+      /* Windy quick embed                                                   */
+      /* ------------------------------------------------------------------ */
+      function WindyEmbed(){
+        const src = 'https://www.windy.com/?temp,37.09,-77.68,8.9';
+        return (
+          <div className="rounded-lg overflow-hidden border border-slate-700/50">
+            <iframe title="Windy" src={src} style={{width:'100%', height:'300px', border:0}} loading="lazy" referrerPolicy="no-referrer" />
+          </div>
+        );
+      }
+
+      /* ------------------------------------------------------------------ */
+      /* Small widgets                                                       */
+      /* ------------------------------------------------------------------ */
+      function MetricsCard({ title, value, unit, note }){
+        return (
+          <Card className="relative overflow-hidden hover:border-orange-500/30 transition-all">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-orange-500/10 to-transparent rounded-full blur-2xl" />
+            <CardHeader className="pb-2">
+              <div className="flex items-start justify-between">
+                <CardTitle className="text-sm text-slate-300">{title}</CardTitle>
+                <div className="p-2.5 rounded-xl bg-orange-500/10">🔥</div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-bold text-white">{value ?? '—'}</span>
+                {unit && <span className="text-lg text-slate-400">{unit}</span>}
+              </div>
+              {note && <div className="mt-2 text-xs text-slate-400">{note}</div>}
+            </CardContent>
+          </Card>
+        );
+      }
+
+      function AlertsPanel({ alerts }){
+        if(!alerts?.length){
+          return (
+            <div className="rounded-lg border-2 border-green-500/30 bg-green-500/10 p-4">
+              <div className="flex items-center gap-3">
+                <div className="text-green-400 text-xl">✅</div>
+                <div>
+                  <h3 className="text-green-400 font-bold">NWS Alert Status: All Clear</h3>
+                  <p className="text-slate-300 text-sm mt-1">No active fire weather alerts mentioned for Wakefield (AKQ) area</p>
+                </div>
+              </div>
+            </div>
+          );
+        }
+        return (
+          <div className="space-y-4">
+            {alerts.map(a=> (
+              <div key={a.id} className="rounded-lg border-2 p-4 bg-orange-500/10 border-orange-500/40">
+                <div className="flex items-start gap-3">
+                  <div className="text-xl text-orange-400">ℹ️</div>
+                  <div className="flex-1">
+                    <h3 className="font-bold text-lg text-orange-400">{a.event}</h3>
+                    {a.headline && <p className="text-slate-300 text-sm mb-2">{a.headline}</p>}
+                    {a.desc && <p className="text-slate-400 text-sm mb-2">{a.desc}</p>}
+                    {a.instr && <p className="text-slate-400 text-xs">{a.instr}</p>}
+                    <div className="flex gap-4 text-xs text-slate-500 mt-2">
+                      {a.onset && <span>Starts: {new Date(a.onset).toLocaleString()}</span>}
+                      {a.expires && <span>Expires: {new Date(a.expires).toLocaleString()}</span>}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+      }
+
+      function ExternalLinksBar(){
+        const btn = 'inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-700/50 bg-slate-800/60 hover:border-orange-500/40 hover:bg-slate-800/80 text-sm';
+        return (
+          <div className="flex flex-wrap gap-2">
+            <a className={btn} href="https://firms.modaps.eosdis.nasa.gov/usfs/map/#m:advanced;@-77.6,37.1,8.9z" target="_blank" rel="noreferrer">NASA FIRMS Map</a>
+            <a className={btn} href="https://www.weather.gov/akq/" target="_blank" rel="noreferrer">NWS Wakefield (AKQ)</a>
+            <a className={btn} href="https://www.windy.com/?temp,37.09,-77.68,8.9" target="_blank" rel="noreferrer">Windy (Temp Layer)</a>
+          </div>
+        );
+      }
+
+      /* ------------------------------------------------------------------ */
+      /* App Shell                                                           */
+      /* ------------------------------------------------------------------ */
+      function Diagnostics(){
+        const missing = [];
+        if (!window.React) missing.push('React');
+        if (!window.ReactDOM) missing.push('ReactDOM');
+        if (!window.L) missing.push('Leaflet');
+        const msg = missing.length ? `Missing CDNs: ${missing.join(', ')}` : null;
+        return msg ? (
+          <div className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200">
+            {msg}. If this appears on GitHub Pages, a CDN may be blocked.
+          </div>
+        ) : null;
+      }
+
+      function App(){
+        const { lastUpdate, isRefreshing, refresh, alerts, hotspots, stations, agg } = useLiveData();
+        const minutesAgo = lastUpdate ? Math.floor((Date.now()-lastUpdate.getTime())/60000) : null;
+        const badge = agg ? calcDanger(agg.h, agg.w, agg.t) : { lvl:'Low', css:'bg-slate-700/40 text-slate-200 border-slate-700/50' };
+        return (
+          <div className="min-h-screen p-4 md:p-8">
+            <ThemeToggle />
+            <div className="max-w-7xl mx-auto">
+              {/* Header */}
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+                <div>
+                  <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">Five Forks Fire Weather — Live</h1>
+                  <p className="text-slate-400">Current hotspots (FIRMS), county weather (NWS), and a Windy overlay</p>
+                  <div className="mt-2 text-xs text-slate-500">Build v1 — single file</div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="text-right">
+                    <p className="text-xs text-slate-500">Last updated</p>
+                    <p className="text-sm text-slate-300 font-medium">{minutesAgo===null ? '—' : minutesAgo===0 ? 'Just now' : minutesAgo===1 ? '1 min ago' : `${minutesAgo} min ago`}</p>
+                  </div>
+                  <Button onClick={refresh} disabled={isRefreshing}>{isRefreshing ? 'Refreshing…' : 'Refresh'}</Button>
+                </div>
+              </div>
+
+              {/* Links */}
+              <div className="mb-6\"><ExternalLinksBar /></div>
+
+              <Diagnostics />
+
+              {/* Unit tests banner */}
+              <div className="mb-6"><UnitTests /></div>
+
+              {/* Alerts */}
+              <div className="mb-8"><AlertsPanel alerts={alerts} /></div>
+
+              {/* Top metrics */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <MetricsCard title="Active Hotspots" value={hotspots.length} note="FIRMS 24h within bbox" />
+                <MetricsCard title="Avg Temp" value={agg?.t ?? '—'} unit="°F" />
+                <MetricsCard title="Avg RH" value={agg?.h ?? '—'} unit="%" />
+                <MetricsCard title="Avg Wind" value={agg?.w ?? '—'} unit="mph" />
+              </div>
+
+              {/* Main grid */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 space-y-6">
+                  <Card>
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <CardTitle>Hotspots Map (Last 24h)</CardTitle>
+                        <Badge className={badge.css}>Danger: {badge.lvl}</Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <MapHotspots hotspots={hotspots} />
+                      <div className="mt-3"><WindyEmbed /></div>
+                    </CardContent>
+                  </Card>
+                </div>
+                <div className="space-y-6">
+                  {/* Stations table */}
+                  <Card>
+                    <CardHeader><CardTitle>County Snapshot (current hour)</CardTitle></CardHeader>
+                    <CardContent>
+                      <div className="overflow-x-auto text-sm">
+                        <table className="min-w-full border border-slate-700/50 rounded-lg overflow-hidden">
+                          <thead className="bg-slate-800/60">
+                            <tr>
+                              <th className="px-3 py-2 text-left">County</th>
+                              <th className="px-3 py-2 text-right">Temp (°F)</th>
+                              <th className="px-3 py-2 text-right">RH (%)</th>
+                              <th className="px-3 py-2 text-right">Wind (mph)</th>
+                              <th className="px-3 py-2 text-left">Danger</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {stations.map((s)=>{
+                              const d = calcDanger(s.humidity, s.wind, s.temperature);
+                              return (
+                                <tr key={s.id} className="border-t border-slate-700/50">
+                                  <td className="px-3 py-2">{s.name}</td>
+                                  <td className="px-3 py-2 text-right">{s.temperature ?? '—'}</td>
+                                  <td className="px-3 py-2 text-right">{s.humidity ?? '—'}</td>
+                                  <td className="px-3 py-2 text-right">{s.wind ?? '—'}</td>
+                                  <td className="px-3 py-2"><span className={cn('px-2 py-1 rounded border text-xs', d.css)}>{d.lvl}</span></td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      function ThemeToggle(){
+        const [theme, setTheme] = useState('dark');
+        useEffect(()=>{ const saved = localStorage.getItem('theme') || 'dark'; setTheme(saved); document.documentElement.classList.toggle('dark', saved==='dark'); },[]);
+        const toggle = () => { const next = theme==='dark'?'light':'dark'; setTheme(next); localStorage.setItem('theme', next); document.documentElement.classList.toggle('dark', next==='dark'); };
+        return (
+          <button title={`Switch to ${theme==='dark'?'light':'dark'} mode`} onClick={toggle} className="fixed top-4 right-4 z-50 bg-slate-800/95 border border-slate-700/50 hover:bg-slate-700 rounded-lg px-3 py-2">{theme==='dark'?'🌞':'🌙'}</button>
+        );
+      }
+
+      /* ------------------------------------------------------------------ */
+      /* Mount                                                                */
+      /* ------------------------------------------------------------------ */
+      const root = ReactDOM.createRoot(document.getElementById('root'));
+      root.render(
+        <ErrorBoundary>
+          <App />
+        </ErrorBoundary>
+      );
+    </script>
+  </body>
 </html>
