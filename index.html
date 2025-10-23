@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Five Forks — Current Hotspots</title>
+
+<style>
+  :root{color-scheme:light dark}
+  html,body{height:100%;margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,sans-serif}
+  .wrap{max-width:1000px;margin:0 auto;padding:16px}
+  #map{height:520px;border-radius:12px;overflow:hidden;border:1px solid #2b2b2b}
+  .row{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+  .btn{padding:8px 12px;border-radius:8px;border:1px solid #3b3b3b;background:#1f2937;color:#f3f4f6;cursor:pointer}
+  .btn:hover{background:#334155}
+  .link{padding:8px 12px;border-radius:8px;border:1px solid #3b3b3b;background:#2563eb;color:#fff;text-decoration:none}
+  .link:hover{background:#1d4ed8}
+  #status{font-size:12px;opacity:.85;margin-top:8px}
+  #embed{margin-top:12px;display:none}
+  #embed iframe{width:100%;height:440px;border:0;border-radius:12px}
+</style>
+
+<link rel="stylesheet"
+  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+  crossorigin="anonymous">
+</head>
+<body>
+  <div class="wrap">
+    <h1 style="margin:0 0 8px">Five Forks — Current Hotspots</h1>
+    <div class="row">
+      <button id="btn-file" class="btn">Load GeoJSON (file)</button>
+      <input id="file" type="file" accept=".json,.geojson" style="display:none">
+      <button id="btn-reset" class="btn">Reset to Six-County Area</button>
+      <a class="link" href="https://fire.airnow.gov/#8/37.028/-77.592" target="_blank" rel="noreferrer">Open AirNow ↗</a>
+      <button id="btn-embed" class="btn">Toggle AirNow Embed</button>
+    </div>
+
+    <div id="embed">
+      <iframe title="AirNow Fire & Smoke"
+              src="https://fire.airnow.gov/#8/37.028/-77.592"
+              referrerpolicy="no-referrer"></iframe>
+    </div>
+
+    <div id="map"></div>
+    <div id="status">Loading map…</div>
+  </div>
+
+  <!-- Leaflet JS + fallback if unpkg is blocked -->
+  <script>
+    (function loadLeaflet(){
+      function ok(){ window.__leaflet_ready__=true; }
+      function add(src,int){
+        const s=document.createElement('script');
+        s.src=src; if(int){s.integrity=int; s.crossOrigin='anonymous';}
+        s.onload=ok; s.onerror=function(){
+          if(!window.__leaflet_fallback__){
+            window.__leaflet_fallback__=true;
+            add('https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js',
+                'sha256-pX0o7NwP4bTz8CwXbT+0QmW1mCq0b2l0sG4gB6VbJmY=');
+          }
+        };
+        document.body.appendChild(s);
+      }
+      add('https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
+          'sha256-20n6aW81p4k+FaKocW06YJcWJjJ48IjsyL4J0N8h96v4=');
+    }());
+  </script>
+
+  <script>
+    // Built-in six counties outline + markers (kept, per your scope)
+    const BUILT_IN = {
+      "type":"FeatureCollection",
+      "features":[
+        {"type":"Feature","properties":{"title":"Dinwiddie"},"geometry":{"type":"Point","coordinates":[-77.60261,37.02153]}},
+        {"type":"Feature","properties":{"title":"Amelia"},"geometry":{"type":"Point","coordinates":[-77.99537,37.32646]}},
+        {"type":"Feature","properties":{"title":"Nottoway"},"geometry":{"type":"Point","coordinates":[-78.03382,37.14824]}},
+        {"type":"Feature","properties":{"title":"Brunswick"},"geometry":{"type":"Point","coordinates":[-77.85049,36.78112]}},
+        {"type":"Feature","properties":{"title":"Greensville"},"geometry":{"type":"Point","coordinates":[-77.56347,36.6413]}},
+        {"type":"Feature","properties":{"title":"Prince George"},"geometry":{"type":"Point","coordinates":[-77.18101,37.1881]}},
+        {"type":"Feature","properties":{"name":"Focus Area"},"geometry":{"type":"Polygon","coordinates":[[[-78.2350117578125,37.363789898359414],[-78.23089188476563,37.29062448283949],[-78.240504921875,37.11755644626926],[-78.21578568359375,37.08250638697882],[-78.15948075195313,37.04634403220737],[-78.07845658203125,37.00797118486934],[-78.00567215859313,37.020830045694964],[-78.0482441796875,36.54218923323913],[-77.28744095703125,36.54217934004624],[-77.41927689453125,36.697591947028855],[-77.4549824609375,36.74712573578124],[-77.46322220703125,36.86427710321731],[-77.54012650390625,36.859882122283764],[-77.6087910546875,36.880756030323596],[-77.15423172851563,37.115021710981814],[-77.07320755859375,37.17741654078484],[-76.96471756835938,37.247412528316616],[-76.99218338867188,37.299453009740276],[-77.0210225,37.306007271306434],[-77.06908768554688,37.26776602706855],[-77.08282059570313,37.27541583062041],[-77.09106034179688,37.31365318781136],[-77.12813919921875,37.303822580920595],[-77.23662918945313,37.31692977113898],[-77.35473221679688,37.23606570446547],[-77.32726639648438,37.19231923958888],[-77.34374588867188,37.16824787325909],[-77.39181107421875,37.170436496249174],[-77.42339676757813,37.16277603847045],[-77.43163651367188,37.185755082241165],[-77.45635575195313,37.18794319808966],[-77.44536942382813,37.21638293433666],[-77.515407265625,37.21857016247888],[-77.5978047265625,37.25792942330379],[-77.64998978515625,37.26667313454041],[-77.66646927734375,37.29320183064708],[-77.71041458984375,37.303033825915705],[-77.7680928125,37.284461200413624],[-77.79830521484375,37.328154196565244],[-77.84774369140625,37.35435780585329],[-77.87520951171875,37.38709945830021],[-77.86422318359375,37.45318674511003],[-77.92876786132813,37.48261602071299],[-78.00155228515625,37.49787108359377],[-78.086696328125,37.45588769581372],[-78.13888138671875,37.46024816203661],[-78.18969315429688,37.446075717235935],[-78.22539872070313,37.40136041928257],[-78.23913163085938,37.382812099276194],[-78.2350117578125,37.362076193229214],[-78.2350117578125,37.363789898359414]]]}}
+      ]
+    };
+
+    let map, dataLayer;
+    const $ = (id)=>document.getElementById(id);
+    const setStatus = (msg)=>{ $('status').textContent = msg; };
+
+    function selfTests(geo){
+      try{
+        console.assert(geo && typeof geo==='object', 'GeoJSON missing');
+        console.assert(geo.type==='FeatureCollection', 'Expected FeatureCollection');
+        console.assert(Array.isArray(geo.features), 'features[] missing');
+        return true;
+      }catch(_){ return false; }
+    }
+
+    function renderGeoJSON(geo){
+      if(!selfTests(geo)){
+        setStatus('Invalid GeoJSON: expected FeatureCollection with features[].');
+        return;
+      }
+      if(dataLayer){ map.removeLayer(dataLayer); dataLayer=null; }
+
+      dataLayer = L.geoJSON(geo, {
+        pointToLayer: (f, latlng) => L.circleMarker(latlng,{
+          radius:6, color:'#ef4444', fillColor:'#ef4444', fillOpacity:.9, weight:1.2
+        }).bindPopup(`<b>${f.properties?.title||f.properties?.name||'Hotspot'}</b>`),
+        style: f => (f.geometry?.type==='Polygon'||f.geometry?.type==='MultiPolygon')
+            ? { color:'#22d3ee', weight:2, fillOpacity:.06 }
+            : { color:'#ef4444' }
+      }).addTo(map);
+
+      try{
+        const b = dataLayer.getBounds();
+        if(b.isValid()) map.fitBounds(b,{padding:[20,20]});
+      }catch(_){}
+    }
+
+    function boot(){
+      if(!window.L){ requestAnimationFrame(boot); return; } // wait for CDN ready
+      map = L.map('map').setView([37.09,-77.68],9);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+        maxZoom:19, attribution:'&copy; OpenStreetMap'
+      }).addTo(map);
+
+      // default view
+      renderGeoJSON(BUILT_IN);
+      setStatus('Load your GeoJSON to replace the default area.');
+
+      // file picker
+      $('btn-file').onclick=()=>$('file').click();
+      $('file').onchange=async e=>{
+        const f=e.target.files?.[0]; if(!f) return;
+        try{
+          const txt=await f.text();
+          const json=JSON.parse(txt);
+          renderGeoJSON(json);
+          setStatus(`Loaded: ${f.name}`);
+        }catch(err){
+          console.error(err);
+          setStatus('Failed to parse file as JSON/GeoJSON.');
+        }
+      };
+
+      // reset
+      $('btn-reset').onclick=()=>{
+        renderGeoJSON(BUILT_IN);
+        setStatus('Reset to six-county area.');
+      };
+
+      // AirNow embed toggle
+      const embed=$('embed');
+      $('btn-embed').onclick=()=>{
+        embed.style.display = embed.style.display==='none'?'block':'none';
+      };
+
+      // Optional: load from URL param: ?geojson=<URL>
+      const url=new URL(location.href);
+      const src=url.searchParams.get('geojson');
+      if(src){
+        fetch(src,{cache:'no-store'}).then(r=>{
+          if(!r.ok) throw new Error(r.status);
+          return r.json();
+        }).then(j=>{
+          renderGeoJSON(j);
+          setStatus(`Loaded from: ${src}`);
+        }).catch(err=>{
+          console.error(err);
+          setStatus('Failed loading geojson URL param; showing default.');
+        });
+      }
+    }
+    boot();
+  </script>
+</body>
+</html>
