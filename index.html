@@ -19,7 +19,10 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <!-- Recharts UMD (charts) -->
-    <script src="https://unpkg.com/recharts/umd/Recharts.min.js"></script>
+    <!-- Recharts UMD (pin a version that ships UMD) -->
+    <script src="https://unpkg.com/recharts@2.8.0/umd/Recharts.min.js"
+            onerror="(function(){var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/recharts@2.8.0/umd/Recharts.min.js';document.head.appendChild(s)})()">
+    </script>
 
     <!-- Minimal dark theme background gradient -->
     <style>
@@ -32,10 +35,28 @@
 
     <script type="text/babel">
       const { useState, useEffect, useMemo } = React;
-      const {
-        AreaChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-        ResponsiveContainer, Legend
-      } = Recharts;
+      // Ensure Recharts is available before destructuring (graceful error if CDN failed)
+      function ensureRecharts(){
+        // If present, use it
+        if (window.Recharts) return window.Recharts;
+        // Attempt one last dynamic load (idempotent)
+        if (!window.__rechartsFallbackTried) {
+          window.__rechartsFallbackTried = true;
+          try {
+            var s=document.createElement('script');
+            s.src='https://unpkg.com/recharts@2.8.0/umd/Recharts.min.js';
+            document.head.appendChild(s);
+          } catch(_) {}
+        }
+        // Gracefully continue without charts
+        return null;
+      }
+      const RechartsLib = ensureRecharts();
+      const hasRecharts = !!RechartsLib;
+      let AreaChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend;
+      if (hasRecharts) {
+        ({ AreaChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } = RechartsLib);
+      }
 
       /* ---------- Tiny UI primitives ---------- */
       const cn = (...a) => a.filter(Boolean).join(' ');
@@ -287,6 +308,38 @@
           { date:'Sat', aqi:72, fires:2, temp:79 },
           { date:'Sun', aqi:58, fires:1, temp:76 },
         ];
+
+        if (!hasRecharts) {
+          // Fallback: simple inline SVG area for AQI + bars for fires
+          const width = 900, height = 300, pad = 32;
+          const xs = i => pad + (i*(width-2*pad))/(trendData.length-1);
+          const aqiVals = trendData.map(d=>d.aqi);
+          const minA = Math.min(...aqiVals, 0), maxA = Math.max(...aqiVals, 80);
+          const yA = v => height-pad - ( (v-minA)/(maxA-minA||1) )*(height-2*pad);
+          const areaPath = trendData.map((d,i)=>`${i?'L':'M'}${xs(i)},${yA(d.aqi)}`).join(' ')+` L${xs(trendData.length-1)},${height-pad} L${xs(0)},${height-pad} Z`;
+          return (
+            <Card>
+              <CardHeader><CardTitle>7‑Day Trends (fallback)</CardTitle></CardHeader>
+              <CardContent>
+                <div className="text-xs text-slate-400 mb-2">Charts library blocked by network; rendering lightweight SVG instead.</div>
+                <div className="w-full overflow-x-auto">
+                  <svg width={width} height={height} role="img" aria-label="AQI and fires over 7 days">
+                    <rect x="0" y="0" width={width} height={height} fill="transparent" />
+                    <path d={areaPath} fill="#f9731655" stroke="#f97316" strokeWidth="2" />
+                    {trendData.map((d,i)=> (
+                      <rect key={i} x={xs(i)-8} y={height-pad- d.fires*20} width="16" height={d.fires*20} fill="#ef4444" opacity="0.8" />
+                    ))}
+                    {trendData.map((d,i)=> (
+                      <text key={'t'+i} x={xs(i)} y={height-6} fontSize="10" textAnchor="middle" fill="#94a3b8">{d.date}</text>
+                    ))}
+                  </svg>
+                </div>
+                <div className="mt-2 text-xs text-slate-500">Legend: orange area = AQI, red bars = fires</div>
+              </CardContent>
+            </Card>
+          );
+        }
+
         return (
           <Card>
             <CardHeader><CardTitle>7‑Day Trends</CardTitle></CardHeader>
