@@ -661,4 +661,86 @@
 
       /* ------------------ App Shell ------------------ */
       function App(){
-        const { lastUpdate, isRefreshing, refres
+        const { lastUpdate, isRefreshing, refresh, airQuality, incidents, stations, fireWeather, drought, alerts, hotspots } = useMockData();
+        const minutesAgo = lastUpdate ? (Math.floor((Date.now()-lastUpdate.getTime())/60000)) : null;
+        return (
+          <div className="min-h-screen p-4 md:p-8">
+            <ThemeToggle />
+
+            <div className="max-w-7xl mx-auto">
+              {/* Header */}
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+                <div>
+                  <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">Five Forks Fire Weather — Demo</h1>
+                  <p className="text-slate-400">Real‑time-ish demo using public APIs (NWS, FIRMS) with graceful fallbacks</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="text-right">
+                    <p className="text-xs text-slate-500">Last updated</p>
+                    <p className="text-sm text-slate-300 font-medium">{minutesAgo===null ? '—' : minutesAgo===0 ? 'Just now' : minutesAgo===1 ? '1 min ago' : `${minutesAgo} min ago`}</p>
+                  </div>
+                  <Button onClick={refresh} disabled={isRefreshing} className="bg-orange-500 hover:bg-orange-600 text-white">
+                    {isRefreshing ? 'Refreshing…' : 'Refresh'}
+                  </Button>
+                </div>
+              </div>
+
+              {/* NWS Alerts */}
+              <div className="mb-8">
+                <NWSAlertBanner alerts={alerts} />
+              </div>
+
+              {/* Top metrics */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <MetricsCard title="Active Fires" value={(incidents?.length)||0} status={(incidents?.length)>0? 'danger':'good'} description="Within ~2° bbox" />
+                <MetricsCard title="Temperature" value={airQuality?.temperature ?? '—'} unit="°F" status={(airQuality?.temperature>85)?'warning':'good'} description="Regional avg" />
+                <MetricsCard title="Wind Speed" value={airQuality?.wind_speed ?? '—'} unit="mph" status={(airQuality?.wind_speed>15)?'warning':'good'} description={airQuality?.wind_direction || '—'} />
+                <MetricsCard title="Humidity" value={airQuality?.humidity ?? '—'} unit="%" status={(airQuality?.humidity<30)?'warning':'good'} />
+              </div>
+
+              {/* Main content */}
+              <div className="grid lg:grid-cols-3 gap-6 mb-8">
+                <div className="lg:col-span-2 space-y-6">
+                  <ActiveAlerts incidents={incidents} />
+                  <MapHotspots hotspots={hotspots} />
+                </div>
+                <div className="space-y-6">
+                  <ExternalLinksBar />
+                  <AirQualityCard data={airQuality} />
+                  <FireWeatherPanel fireWeather={fireWeather} drought={drought} />
+                </div>
+              </div>
+
+              <TrendsChart />
+
+              {/* Footer */}
+              <div className="mt-8 p-6 bg-slate-800/30 backdrop-blur-sm rounded-xl border border-slate-700/50">
+                <div className="grid md:grid-cols-3 gap-6 text-center">
+                  <div>
+                    <p className="text-slate-500 text-sm mb-1">Data Sources</p>
+                    <p className="text-slate-300 font-semibold">NASA FIRMS, NWS, OSM</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500 text-sm mb-1">Update Frequency</p>
+                    <p className="text-slate-300 font-semibold">Every 15 minutes</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500 text-sm mb-1">Region</p>
+                    <p className="text-slate-300 font-semibold">~Five Forks, VA</p>
+                  </div>
+                </div>
+                <div className="mt-4"><Diagnostics /></div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      /* ------------------ Mount ------------------ */
+      const rootEl = document.getElementById('root');
+      const root = ReactDOM.createRoot(rootEl);
+      root.render(
+        <ErrorBoundary>
+          <App />
+        </ErrorBoundary>
+      );
