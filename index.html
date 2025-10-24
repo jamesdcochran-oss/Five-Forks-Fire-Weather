@@ -1,287 +1,36 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Five Forks — Current Hotspots</title>
-<style>
-  :root {
-    --bg: #0f172a; --bg2:#111827; --panel:#0b1220; --text:#e5e7eb; --muted:#9ca3af;
-    --accent:#fb923c; --good:#34d399; --warn:#f59e0b; --bad:#ef4444; --border:#22304b;
-  }
-  html,body {height:100%}
-  body {margin:0; font:14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-        color:var(--text); background: radial-gradient(80vw 60vh at 50% -10%,#1f2937 0,#111827 40%,#0b1220 100%);}
-  .wrap {max-width:1100px; margin:0 auto; padding:24px 16px 56px}
-  h1 {font-size:28px; margin:0 0 12px}
-  .row {display:flex; gap:12px; flex-wrap:wrap; margin-bottom:14px}
-  .btn {background:#1f2937; color:#e5e7eb; border:1px solid var(--border); padding:9px 12px; border-radius:10px; cursor:pointer}
-  .btn:hover{border-color:#2f3f63; background:#1b2538}
-  .panel {background:rgba(17,24,39,.8); border:1px solid var(--border); border-radius:14px; padding:14px}
-  .pill {display:inline-block; padding:2px 8px; border-radius:999px; border:1px solid #2b3a5a; font-size:12px}
-  .grid {display:grid; gap:16px}
-  .grid-2 {grid-template-columns: 1fr 1fr}
-  .muted {color:var(--muted)}
-  table {width:100%; border-collapse:separate; border-spacing:0}
-  th, td {padding:8px 10px; border-bottom:1px solid #1e2a44}
-  th {text-align:left; color:#cbd5e1; background:#0f172a; position:sticky; top:0}
-  .right {text-align:right}
-  .badge {padding:2px 8px; border-radius:999px; font-size:12px; border:1px solid #2b3a5a}
-  .b-low    {background:#064e3b; color:#bbf7d0; border-color:#116f55}
-  .b-mod    {background:#78350f; color:#fde68a; border-color:#a16207}
-  .b-high   {background:#7c2d12; color:#fdba74; border-color:#9a3412}
-  .b-vhigh  {background:#7f1d1d; color:#fecaca; border-color:#991b1b}
-  .b-extreme{background:#4c1d95; color:#e9d5ff; border-color:#6d28d9}
-  details summary {list-style:none; cursor:pointer; user-select:none}
-  details summary::-webkit-details-marker{display:none}
-  .hr {height:1px; background:#1e2a44; margin:8px 0 14px}
-  .small {font-size:12px}
-  iframe {width:100%; height:420px; border:0}
-  .hidden {display:none}
-</style>
-</head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Five Forks Fire Weather Dashboard</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    
+    <link rel="stylesheet" href="style.css"> 
+    
+    </head>
 <body>
-  <div class="wrap">
-    <h1>Five Forks — Current Hotspots</h1>
-    <div class="row">
-      <label class="btn" for="file">Load GeoJSON (file)</label>
-      <input id="file" type="file" accept=".json,.geojson" class="hidden" />
-      <button class="btn" id="reset">Reset to Six-County Area</button>
-      <a class="btn" id="airnow-open" target="_blank" rel="noreferrer"
-         href="https://fire.airnow.gov/#8/37.028/-77.592">Open AirNow ↗</a>
-      <button class="btn" id="airnow-toggle">Toggle AirNow Embed</button>
-      <button class="btn" id="windy-toggle">Toggle Windy Embed</button>
+    <header>
+        <h1>🔥 Five Forks Fire Weather Dashboard</h1>
+        <p>Real-Time Fire Danger & Hotspots for Central VA.</p>
+    </header>
+
+    <div id="cards-container">
+        <h2>County Conditions & Danger Levels</h2>
+        <div id="cards">
+            </div>
+    </div>
+    
+    <div id="map-container">
+        <h2>Active Fire Hotspots & Weather Markers</h2>
+        <div id="map"></div>
     </div>
 
-    <div class="small muted">Last updated: <span id="stamp">—</span></div>
-    <div class="hr"></div>
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    
+    <script src="https://unpkg.com/@turf/turf/turf.min.js"></script>
 
-    <div class="grid grid-2">
-      <div class="panel">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-          <div style="font-weight:600">AirNow (quick view)</div>
-          <span id="agg-badge" class="badge">Danger: —</span>
-        </div>
-        <div id="airnow-wrap" class="panel" style="margin-top:10px; padding:0">
-          <!-- Opt-in embed -->
-          <iframe id="airnow-iframe" class="hidden"
-            src="https://fire.airnow.gov/#8/37.028/-77.592" referrerpolicy="no-referrer" loading="lazy"></iframe>
-          <div id="airnow-note" class="small muted" style="padding:10px">
-            Embed is off. Use “Toggle AirNow Embed”, or <a id="airnow-link" href="https://fire.airnow.gov/#8/37.028/-77.592" target="_blank" rel="noreferrer">open directly</a>.
-          </div>
-        </div>
-
-        <div id="windy-wrap" class="panel" style="margin-top:12px; padding:0">
-          <iframe id="windy-iframe" class="hidden"
-            src="https://embed.windy.com/embed2.html?lat=37.1&lon=-77.7&zoom=9&level=surface&overlay=fire&menu=&message=true&marker=&calendar=now&pressure=&type=map&key=QP7fjrrtVIlYSHcKueZc3u1Ur5AgJ5bM"></iframe>
-          <div id="windy-note" class="small muted" style="padding:10px">
-            Embed is off. Toggle it above. (Uses your Windy key.)
-          </div>
-        </div>
-
-        <details style="margin-top:12px">
-          <summary class="panel" style="padding:10px">
-            <strong>NWS Alerts</strong> <span class="small muted">— click to expand</span>
-          </summary>
-          <div id="alerts" class="panel small" style="margin-top:8px"></div>
-        </details>
-      </div>
-
-      <div class="panel">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <div style="font-weight:600">County Snapshot (current hour)</div>
-        </div>
-        <div class="hr"></div>
-        <div style="overflow:auto; max-height:520px">
-          <table>
-            <thead>
-              <tr>
-                <th>County</th>
-                <th class="right">Temp (°F)</th>
-                <th class="right">RH (%)</th>
-                <th class="right">Wind (mph)</th>
-                <th>Danger</th>
-              </tr>
-            </thead>
-            <tbody id="tbody"></tbody>
-          </table>
-        </div>
-        <div class="small muted" style="margin-top:8px">
-          Heuristic = “30/30 crossover”: temp ≥86°F, RH ≤30%, wind ≥19 mph. More passes → higher risk.
-        </div>
-        <div class="small muted" id="hotspot-note" style="margin-top:8px"></div>
-      </div>
-    </div>
-  </div>
-
-<script>
-/* =================== Danger heuristic + tiny tests =================== */
-const THRESH = { tempF:86, rh:30, wind:19 };
-function calcDanger(rh, wind, tempF){
-  const h = Number.isFinite(rh)? rh : parseFloat(rh);
-  const w = Number.isFinite(wind)? wind : parseFloat(wind);
-  const t = Number.isFinite(tempF)? tempF : parseFloat(tempF);
-  if (![h,w,t].every(Number.isFinite)) return {lvl:'Low', cls:'b-low'};
-  const passes = (t>=THRESH.tempF) + (h<=THRESH.rh) + (w>=THRESH.wind);
-  if (passes===3) return {lvl:'Extreme', cls:'b-extreme'};
-  if (passes===2) return {lvl:'Very High', cls:'b-vhigh'};
-  if (passes===1) return {lvl:'High', cls:'b-high'};
-  if ((h<=35 && w>=10) || t>=80) return {lvl:'Moderate', cls:'b-mod'};
-  return {lvl:'Low', cls:'b-low'};
-}
-// console tests
-(function(){
-  const cases = [
-    {in:[40,5,70], out:'Low'},
-    {in:[34,12,82], out:'Moderate'},
-    {in:[50,22,70], out:'High'},
-    {in:[28,21,70], out:'Very High'},
-    {in:[20,22,90], out:'Extreme'},
-  ];
-  const ok = cases.every(c=>calcDanger(...c.in).lvl===c.out);
-  console.log('Danger heuristic tests:', ok?'PASS':'FAIL', cases.map(c=>({in:c.in, got:calcDanger(...c.in).lvl, want:c.out})));
-})();
-
-/* =================== DOM helpers =================== */
-const $ = sel => document.querySelector(sel);
-const tbody = $('#tbody');
-const stamp = $('#stamp');
-const aggBadge = $('#agg-badge');
-const alertsEl = $('#alerts');
-const hotspotNote = $('#hotspot-note');
-
-/* =================== Counties =================== */
-const COUNTIES = [
-  { id:'dinwiddie',   name:'Dinwiddie',   lat:37.02153, lon:-77.60261 },
-  { id:'amelia',      name:'Amelia',      lat:37.32646, lon:-77.99537 },
-  { id:'nottoway',    name:'Nottoway',    lat:37.14824, lon:-78.03382 },
-  { id:'brunswick',   name:'Brunswick',   lat:36.78112, lon:-77.85049 },
-  { id:'greensville', name:'Greensville', lat:36.64130, lon:-77.56347 },
-  { id:'prince_george', name:'Prince George', lat:37.18810, lon:-77.18101 },
-];
-
-/* =================== NWS helpers =================== */
-async function getHourly(lat, lon){
-  const p = await fetch(`https://api.weather.gov/points/${lat},${lon}`, {headers:{Accept:'application/geo+json'}});
-  if (!p.ok) throw new Error('points failed');
-  const j = await p.json();
-  const url = j?.properties?.forecastHourly;
-  if (!url) throw new Error('no hourly url');
-  const r = await fetch(url, {headers:{Accept:'application/geo+json'}, cache:'no-store'});
-  if (!r.ok) throw new Error('hourly failed');
-  const f = await r.json();
-  return f?.properties?.periods?.[0] || null;
-}
-function parseWindStr(s){
-  if (!s) return null;
-  const m = s.match(/(\d+)\s*mph/);
-  return m ? parseInt(m[1],10) : null;
-}
-
-/* =================== Render =================== */
-async function loadAll(){
-  const rows = [];
-  for (const c of COUNTIES){
-    try{
-      const p = await getHourly(c.lat, c.lon);
-      rows.push({
-        name:c.name,
-        t: (typeof p?.temperature==='number')? p.temperature : null,
-        h: Number.isFinite(p?.relativeHumidity?.value)? Math.round(p.relativeHumidity.value) : null,
-        w: parseWindStr(p?.windSpeed)
-      });
-    }catch(e){
-      console.warn('NWS fetch failed for', c.name, e);
-      rows.push({name:c.name,t:null,h:null,w:null});
-    }
-  }
-
-  // table
-  tbody.innerHTML = '';
-  let at=0, ah=0, aw=0, nT=0, nH=0, nW=0;
-  rows.forEach(r=>{
-    const d = calcDanger(r.h, r.w, r.t);
-    if (Number.isFinite(r.t)) { at+=r.t; nT++; }
-    if (Number.isFinite(r.h)) { ah+=r.h; nH++; }
-    if (Number.isFinite(r.w)) { aw+=r.w; nW++; }
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${r.name}</td>
-      <td class="right">${r.t ?? '—'}</td>
-      <td class="right">${r.h ?? '—'}</td>
-      <td class="right">${r.w ?? '—'}</td>
-      <td><span class="badge ${d.cls}">${d.lvl}</span></td>`;
-    tbody.appendChild(tr);
-  });
-
-  // aggregate badge
-  const t = nT? Math.round(at/nT): null;
-  const h = nH? Math.round(ah/nH): null;
-  const w = nW? Math.round(aw/nW): null;
-  const agg = calcDanger(h,w,t);
-  aggBadge.className = `badge ${agg.cls}`;
-  aggBadge.textContent = `Danger: ${agg.lvl}`;
-
-  stamp.textContent = new Date().toLocaleString();
-
-  // alerts (Wakefield + region; trimmed)
-  try{
-    const ar = await fetch('https://api.weather.gov/alerts/active?area=VA,NC,MD', {headers:{Accept:'application/geo+json'}});
-    if (ar.ok){
-      const aj = await ar.json();
-      const feats = (aj.features||[]).slice(0,6);
-      alertsEl.innerHTML = feats.length
-        ? feats.map(f=> {
-            const p=f.properties||{};
-            return `<div class="panel small" style="margin-bottom:8px">
-              <div><strong>${p.event||'Alert'}</strong></div>
-              ${p.headline? `<div class="muted" style="margin:4px 0">${p.headline}</div>`:''}
-              ${p.description? `<div class="muted" style="white-space:pre-wrap">${p.description}</div>`:''}
-            </div>`;
-          }).join('')
-        : '<div class="muted">No active alerts.</div>';
-    }
-  }catch(e){ alertsEl.innerHTML = '<div class="muted">Alerts unavailable.</div>'; }
-}
-
-/* =================== GeoJSON (local) =================== */
-const fileInput = $('#file');
-fileInput.addEventListener('change', async (ev)=>{
-  const f = ev.target.files?.[0];
-  if (!f) return;
-  try{
-    const text = await f.text();
-    const gj = JSON.parse(text);
-    const features = gj.type==='FeatureCollection' ? gj.features : [];
-    const pts = features.filter(ft=> (ft.geometry?.type==='Point'));
-    hotspotNote.textContent = `Loaded ${pts.length} hotspot point(s) from “${f.name}”.`;
-  }catch(e){
-    hotspotNote.textContent = 'Could not read GeoJSON: ' + e.message;
-  }
-});
-
-/* =================== Controls =================== */
-$('#reset').onclick = ()=> {
-  // nothing to reset beyond table; re-fetch
-  loadAll();
-};
-const airnowIframe = $('#airnow-iframe');
-const airnowNote = $('#airnow-note');
-$('#airnow-toggle').onclick = ()=>{
-  const on = airnowIframe.classList.contains('hidden');
-  airnowIframe.classList.toggle('hidden', !on);
-  airnowNote.classList.toggle('hidden', on);
-};
-const windyIframe = $('#windy-iframe');
-const windyNote = $('#windy-note');
-$('#windy-toggle').onclick = ()=>{
-  const on = windyIframe.classList.contains('hidden');
-  windyIframe.classList.toggle('hidden', !on);
-  windyNote.classList.toggle('hidden', on);
-};
-
-/* =================== Kickoff =================== */
-loadAll();
-</script>
+    <script src="dashboard.js"></script> 
 </body>
 </html>
