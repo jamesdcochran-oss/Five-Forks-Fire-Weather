@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Five Forks Fire Weather Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>🔥 Five Forks Fire Weather</h1>
+            <p class="subtitle">Real-time fire weather monitoring for Five Forks District, Virginia</p>
+            <div id="last-update"></div>
+        </div>
+    </header>
+
+    <main class="container">
+        <!-- Fire Danger Alert Banner -->
+        <section id="danger-alert" class="alert-banner hidden">
+            <div class="alert-content">
+                <span class="alert-icon">⚠️</span>
+                <span id="alert-message"></span>
+            </div>
+        </section>
+
+        <!-- Quick Stats Cards -->
+        <section class="stats-grid">
+            <div class="stat-card">
+                <h3>Fire Danger</h3>
+                <div id="fire-danger-level" class="stat-value loading">Loading...</div>
+                <div id="fire-danger-text" class="stat-label"></div>
+            </div>
+            <div class="stat-card">
+                <h3>Temperature</h3>
+                <div id="temp-value" class="stat-value loading">--°F</div>
+                <div class="stat-label">Current</div>
+            </div>
+            <div class="stat-card">
+                <h3>Humidity</h3>
+                <div id="humidity-value" class="stat-value loading">--%</div>
+                <div class="stat-label">Relative</div>
+            </div>
+            <div class="stat-card">
+                <h3>Wind</h3>
+                <div id="wind-value" class="stat-value loading">-- mph</div>
+                <div id="wind-direction" class="stat-label">--</div>
+            </div>
+        </section>
+
+        <!-- Daily Forecast Embed -->
+        <section class="forecast-section">
+            <h2>📋 Daily Fire Weather Forecast</h2>
+            <div id="forecast-container" class="forecast-embed">
+                <p class="loading">Loading forecast...</p>
+            </div>
+        </section>
+
+        <!-- Hotspot Map -->
+        <section class="map-section">
+            <h2>🛰️ Active Fire Detections (24hrs)</h2>
+            <div class="map-controls">
+                <button id="refresh-map" class="btn-primary">🔄 Refresh Data</button>
+                <span id="hotspot-count" class="badge">0 detections</span>
+            </div>
+            <div id="map" class="map-container"></div>
+            <div class="map-legend">
+                <h4>Detection Confidence</h4>
+                <div class="legend-item"><span class="marker high"></span> High</div>
+                <div class="legend-item"><span class="marker nominal"></span> Nominal</div>
+                <div class="legend-item"><span class="marker low"></span> Low</div>
+            </div>
+        </section>
+
+        <!-- Detailed Weather Table -->
+        <section class="weather-detail">
+            <h2>📊 Detailed Weather Conditions</h2>
+            <table id="weather-table">
+                <thead>
+                    <tr>
+                        <th>Parameter</th>
+                        <th>Current</th>
+                        <th>Forecast</th>
+                    </tr>
+                </thead>
+                <tbody id="weather-table-body">
+                    <tr><td colspan="3" class="loading">Loading weather data...</td></tr>
+                </tbody>
+            </table>
+        </section>
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>Data Sources: NASA FIRMS, National Weather Service, Virginia DOF</p>
+            <p>Dashboard developed for Five Forks Fire Weather Operations</p>
+            <p class="disclaimer">⚠️ For operational use only. Not for public fire prediction.</p>
+        </div>
+    </footer>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="main.js"></script>
+</body>
+</html>
