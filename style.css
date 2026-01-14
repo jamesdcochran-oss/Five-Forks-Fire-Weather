@@ -422,3 +422,33 @@ footer .disclaimer {
     height: 300px;
   }
 }
+/* === Ops Console Overrides (paste at end of style.css) === */
+
+/* Calm background */
+body {
+  background: #f6f7f9 !important;
+  color: #1f2937;
+}
+
+/* Header: flat, restrained */
+header {
+  background: #111827 !important;
+  box-shadow: none !important;
+  margin-bottom: 1.25rem !important;
+}
+header h1 {
+  text-shadow: none !important;
+  font-size: 1.8rem !important;
+}
+header .subtitle,
+#last-update {
+  opacity: 0.85 !important;
+}
+
+/* Sections: cleaner, less "app store" */
+section {
+  border: 1px solid #e5e7eb !important;
+  box-shadow: none !important;
+  border-radius: 10px !important;
+}
+s
