@@ -1,479 +1,246 @@
-<!-- File: index.html -->
+<!-- /single.html -->
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Five Forks Fire Weather</title>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Five Forks Fire Weather — Single File</title>
 
-  <!-- Leaflet -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 
-  <style>
-    :root {
-      --bg: #f9fafb;
-      --text: #1f2937;
-      --card: #ffffff;
-      --border: #e5e7eb;
-      --brand: #3b82f6;
-      --muted: #6b7280;
-      --ok: #10b981;
-      --warn: #f59e0b;
-      --err: #ef4444;
-    }
-    [data-theme='dark'] {
-      --bg: #0f172a;
-      --text: #e5e7eb;
-      --card: #111827;
-      --border: #374151;
-      --brand: #60a5fa;
-      --muted: #9ca3af;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji";
-      background: var(--bg);
-      color: var(--text);
-      transition: background 0.3s ease, color 0.3s ease;
-    }
-    header {
-      background: var(--brand);
-      color: white;
-      padding: 0.75rem 1rem;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: .5rem;
-      flex-wrap: wrap;
-    }
-    h1 { margin: 0; font-size: 1.125rem; line-height: 1.25rem; }
-    .menu { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
-    .btn, .menu a {
-      appearance: none;
-      background: white;
-      color: #1f2937;
-      border: 1px solid var(--border);
-      padding: 0.4rem 0.65rem;
-      border-radius: 9999px;
-      cursor: pointer;
-      font-size: 0.875rem;
-      text-decoration: none;
-      line-height: 1;
-      transition: transform 120ms ease, box-shadow 120ms ease;
-    }
-    .btn:hover { transform: translateY(-1px); box-shadow: 0 6px 12px rgba(0,0,0,.1); }
-    .btn:active { transform: translateY(0); box-shadow: none; }
-    .btn[disabled] { opacity: 0.6; cursor: not-allowed; }
+    <style>
+      /* Five Forks Fire Weather — Single-file build
+         - Live data: NOAA (NWS) + NASA FIRMS
+         - Map tiles: OpenStreetMap via Leaflet
+         - Includes Brunswick & Greensville; self-check ensures both render
+      */
+      :root { --bg:#f9fafb; --card:#ffffff; --muted:#6b7280; --shadow:0 2px 6px rgba(0,0,0,.08); --ok:#16a34a; --warn:#d97706; --err:#dc2626; --neutral:#475569; }
+      *{box-sizing:border-box}
+      html,body{height:100%}
+      body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:#0f172a}
 
-    main { display: grid; gap: 1rem; padding: 1rem; }
-    .cards {
-      display: grid;
-      gap: 1rem;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    }
-    .card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 1rem;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-      transition: transform 120ms ease, box-shadow 200ms ease;
-    }
-    .card:hover { transform: translateY(-2px); box-shadow: 0 12px 20px rgba(0,0,0,.08); }
+      .app-header{display:flex;align-items:center;justify-content:space-between;padding:.75rem 1rem;background:#ef4444;color:#fff}
+      .app-header h1{margin:0;font-size:1.15rem}
+      .statusbar{display:flex;gap:.5rem;align-items:center}
+      .badge{padding:.25rem .5rem;border-radius:999px;font-size:.8rem;box-shadow:var(--shadow);background:#e5e7eb;color:var(--neutral)}
+      .badge.ok{color:#fff;background:var(--ok)}
+      .badge.warn{color:#fff;background:var(--warn)}
+      .badge.err{color:#fff;background:var(--err)}
 
-    .meta { font-size: 0.8rem; color: var(--muted); }
-    .map-wrap { height: 520px; border-radius: 14px; overflow: hidden; border: 1px solid var(--border); }
+      main{display:grid;gap:1rem;padding:1rem}
+      .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1rem}
+      .card{background:var(--card);border-radius:12px;padding:.9rem;box-shadow:var(--shadow)}
+      .card h3{margin:0 0 .25rem;display:flex;align-items:center;gap:.4rem;font-size:1.05rem}
+      .dim{color:var(--muted);font-size:.9rem}
+      .metric{margin:.25rem 0}
 
-    footer { text-align: center; padding: 1rem; font-size: 0.9rem; color: var(--muted); }
+      .map-wrap{height:480px;border-radius:12px;overflow:hidden;box-shadow:var(--shadow)}
+      #map{height:100%;width:100%}
+      .legend{background:#fff;padding:6px 8px;border-radius:8px;box-shadow:var(--shadow)}
+      .legend .row{display:flex;align-items:center;gap:6px;margin:4px 0}
+      .legend .swatch{width:12px;height:12px;border-radius:50%;display:inline-block}
 
-    #spinner { text-align: center; font-size: 1rem; padding: 1rem; display: none; }
-    #cards[aria-busy="true"] { opacity: 0.8; }
+      .alerts{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;padding:.75rem;border-radius:8px;box-shadow:var(--shadow)}
+      .app-footer{text-align:center;color:var(--muted);padding:.75rem}
 
-    /* Pills */
-    .pill {
-      display: inline-flex;
-      align-items: center;
-      gap: .4rem;
-      padding: .35rem .6rem;
-      border-radius: 9999px;
-      background: white;
-      color: #1f2937;
-      border: 1px solid var(--border);
-      font-size: .75rem;
-      line-height: 1;
-      user-select: none;
-    }
-    .pill.ok { border-color: var(--ok); color: var(--ok); }
-    .pill.warn { border-color: var(--warn); color: var(--warn); }
-    .pill.err { border-color: var(--err); color: var(--err); }
-
-    /* Skeletons */
-    .skeleton { position: relative; overflow: hidden; background: #e5e7eb; }
-    [data-theme='dark'] .skeleton { background: #374151; }
-    .skeleton::after {
-      content: "";
-      position: absolute; inset: 0;
-      transform: translateX(-100%);
-      background: linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent);
-      animation: shimmer 1.2s infinite;
-    }
-    @keyframes shimmer { 100% { transform: translateX(100%); } }
-  </style>
-</head>
-<body>
-  <header>
-    <h1 aria-label="Five Forks Fire Weather">🔥 Five Forks Fire Weather</h1>
-    <nav class="menu" aria-label="Primary">
-      <button id="themeBtn" class="btn" type="button" aria-pressed="false" title="Toggle theme (T)">🌓 Theme</button>
-      <button id="unitBtn" class="btn" type="button" title="Toggle °F/°C (U)">°F</button>
-      <button id="refreshBtn" class="btn" type="button" title="Refresh data (R)">🔄 Refresh</button>
-      <span id="statusPill" class="pill" aria-live="polite" title="Data freshness">…</span>
-      <span id="extremesPill" class="pill" aria-live="polite" title="Area extremes">—</span>
-      <a href="https://www.weather.gov/dlh/fwd#" target="_blank" rel="noopener noreferrer">FWD</a>
-      <a href="https://www.weather.gov/akq/" target="_blank" rel="noopener noreferrer">AKQ</a>
-      <a href="https://fs-prod-nwcg.s3.us-gov-west-1.amazonaws.com/s3fs-public/publication/pms461.pdf" target="_blank" rel="noopener noreferrer">IRPG</a>
-    </nav>
-  </header>
-
-  <main>
-    <div id="spinner" role="status" aria-live="polite">🔄 Loading weather data…</div>
-    <div id="updated" class="meta" style="text-align:right;padding-right:0.25rem;">Last updated: —</div>
-
-    <section id="cards" class="cards" aria-live="polite" aria-busy="false"></section>
-    <section class="map-wrap" aria-label="Active wildfire hotspots map"><div id="map" style="height:100%"></div></section>
-  </main>
-
-  <footer>Data: NOAA & NASA FIRMS • Updates hourly</footer>
-
-  <script>
-    // ---- Constants ----
-    const COUNTIES = [
-      { name: "Amelia", lat: 37.342, lon: -77.980 },
-      { name: "Nottoway", lat: 37.142, lon: -78.089 },
-      { name: "Dinwiddie", lat: 37.077, lon: -77.587 },
-      { name: "Prince George", lat: 37.221, lon: -77.288 },
-      { name: "Brunswick", lat: 36.758, lon: -77.847 },
-      { name: "Greensville", lat: 36.686, lon: -77.542 }
-    ];
-
-    const FRESH_MS = 15 * 60 * 1000; // 15 minutes
-
-    // FIRMS overlay (MODIS, 24h)
-    const FIRMS_URL = "https://firms.modaps.eosdis.nasa.gov/active_fire/c6.1/geojson/MODIS_C6_1_USA_contiguous_and_Hawaii_24h.geojson";
-    // Bounding box for South-Central Virginia (minLon, minLat, maxLon, maxLat)
-    const BBOX = [-78.5, 36.4, -77.0, 37.7];
-
-    // Basemap tiles (light/dark), follow UI theme
-    const TILES = {
-      light: {
-        url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        attr: '© OpenStreetMap contributors'
-      },
-      dark: {
-        url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-        attr: '© OpenStreetMap contributors, © CARTO'
+      @media (min-width:960px){
+        main{grid-template-columns:1.2fr 1fr;align-items:start}
+        .map-wrap{grid-row:span 2}
       }
-    };
+    </style>
+  </head>
+  <body>
+    <header class="app-header">
+      <h1>🔥 Five Forks Fire Weather</h1>
+      <div class="statusbar" aria-live="polite">
+        <span id="status-noaa" class="badge" title="NOAA Weather API">NOAA ⏳</span>
+        <span id="status-firms" class="badge" title="NASA FIRMS GeoJSON">FIRMS ⏳</span>
+        <span id="status-tiles" class="badge" title="Map tiles (OSM)">Tiles ⏳</span>
+      </div>
+    </header>
 
-    // ---- State ----
-    let inFlight = false; // prevents overlapping refreshes
-    let unit = 'F';
-    let lastSuccessAt = 0;
-    let lastResults = null; // cache last results for unit toggling
-    let map, lightLayer, darkLayer, firmsLayer;
+    <main>
+      <section id="cards" class="cards" aria-label="County conditions"></section>
+      <section class="map-wrap" aria-label="Hotspots map">
+        <div id="map"></div>
+      </section>
+      <section id="alerts" class="alerts" aria-live="polite" hidden></section>
+    </main>
 
-    // ---- Utils ----
-    const $ = sel => document.querySelector(sel);
-    function saveTheme(theme) { try { localStorage.setItem('ffwx:theme', theme); } catch {} }
-    function getSavedTheme() { try { return localStorage.getItem('ffwx:theme'); } catch { return null; } }
-    function saveUnit(u) { try { localStorage.setItem('ffwx:unit', u); } catch {} }
-    function getSavedUnit() { try { return localStorage.getItem('ffwx:unit'); } catch { return null; } }
+    <footer class="app-footer">
+      <small>Data: NOAA NWS & NASA FIRMS · Auto-refresh hourly</small>
+    </footer>
 
-    function fmtStamp(d = new Date()) { return d.toLocaleString(undefined, { hour12: true }); }
-    function roundMaybe(n) { return Number.isFinite(n) ? Math.round(n) : null; }
-    const toC = f => Math.round(((f - 32) * 5) / 9);
-    function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
+    <!-- Libraries -->
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
 
-    function withTimeout(ms = 12000) {
-      const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), ms);
-      const exec = (input, init = {}) => fetch(input, { ...init, signal: ctrl.signal }).finally(() => clearTimeout(t));
-      return { exec, abort: () => ctrl.abort() };
-    }
+    <script>
+      /**
+       * Single-file app logic
+       * - Verifies connectivity (badges) for NOAA, FIRMS, OSM tiles
+       * - Draws hotspots + 20 km buffers + county centers
+       * - Builds cards per county using NOAA hourly forecast
+       */
 
-    async function fetchJSON(url, options = {}, timeoutMs = 12000) {
-      const ft = withTimeout(timeoutMs);
-      const res = await ft.exec(url, options);
-      if (!res.ok) {
-        const err = new Error(`HTTP ${res.status} for ${url}`);
-        err.status = res.status;
-        throw err;
+      // ----------------------------- Config ---------------------------------
+      const COUNTIES = [
+        { name: "Amelia",        lat: 37.342, lon: -77.980 },
+        { name: "Nottoway",      lat: 37.142, lon: -78.089 },
+        { name: "Dinwiddie",     lat: 37.077, lon: -77.587 },
+        { name: "Prince George", lat: 37.221, lon: -77.288 },
+        { name: "Brunswick",     lat: 36.758, lon: -77.847 },
+        { name: "Greensville",   lat: 36.686, lon: -77.542 },
+      ];
+
+      const BUFFER_KM = 20; // why: conservative proximity window for nearby hotspots
+      const FIRMS_URL = "https://firms.modaps.eosdis.nasa.gov/active_fire/c6.1/geojson/MODIS_C6_1_USA_contiguous_and_Hawaii_24h.geojson";
+
+      // --------------------------- Status Helpers ----------------------------
+      function setBadge(id, state, label){
+        const el = document.getElementById(id);
+        if(!el) return;
+        el.classList.remove('ok','warn','err');
+        el.classList.add(state);
+        if(label) el.textContent = label;
       }
-      return res.json();
-    }
+      function showAlert(msg){ const box = document.getElementById('alerts'); if(!box) return; box.hidden = false; box.textContent = msg; }
 
-    function parseWindMph(windSpeedStr) {
-      if (!windSpeedStr) return null;
-      const nums = windSpeedStr.split(/[^0-9]+/).map(n => parseInt(n, 10)).filter(n => Number.isFinite(n));
-      if (!nums.length) return null;
-      return Math.max(...nums);
-    }
+      // ----------------------------- Map Init --------------------------------
+      let map, layers = {};
+      function initMap(){
+        map = L.map('map');
+        const tiles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '© OpenStreetMap contributors' });
+        tiles.on('load', () => setBadge('status-tiles','ok','Tiles ✅'));
+        tiles.on('tileerror', () => setBadge('status-tiles','err','Tiles ❌'));
+        tiles.addTo(map);
 
-    async function fetchWeather(lat, lon, allowRetry = true) {
-      try {
-        const meta = await fetchJSON(`https://api.weather.gov/points/${lat},${lon}`, { headers: { 'Accept': 'application/geo+json' } });
-        const hourlyUrl = meta?.properties?.forecastHourly;
-        if (!hourlyUrl) throw Object.assign(new Error('No hourly URL'), { status: 500 });
-        const data = await fetchJSON(hourlyUrl, { headers: { 'Accept': 'application/geo+json' } });
-        const p = data?.properties?.periods?.[0];
-        if (!p) return null;
-        const windStr = [p.windSpeed || '', p.windDirection || ''].filter(Boolean).join(' ');
-        return {
-          tempF: Number.isFinite(p.temperature) ? p.temperature : null,
-          rh: roundMaybe(p?.relativeHumidity?.value),
-          wind: windStr,
-          windMph: parseWindMph(p.windSpeed),
-          short: p.shortForecast || '—'
+        L.control.scale({ metric: false }).addTo(map);
+        layers.hotspots = L.layerGroup().addTo(map);
+        layers.buffers  = L.layerGroup().addTo(map);
+        layers.centers  = L.layerGroup().addTo(map);
+
+        const overlays = { '🔥 Hotspots': layers.hotspots, '🟢 Buffers (20 km)': layers.buffers, '📍 County centers': layers.centers };
+        L.control.layers({}, overlays, { collapsed: true }).addTo(map);
+
+        const legend = L.control({ position: 'bottomright' });
+        legend.onAdd = () => {
+          const div = L.DomUtil.create('div','legend');
+          div.innerHTML = `
+            <div class="row"><span class="swatch" style="background:#ef4444"></span>Hotspot</div>
+            <div class="row"><span class="swatch" style="background:#22c55e"></span>20 km buffer</div>
+            <div class="row"><span class="swatch" style="background:#0ea5e9"></span>County center</div>`;
+          return div;
         };
-      } catch (err) {
-        if (err && err.status === 429 && allowRetry) {
-          await wait(300 + Math.random() * 900);
-          return fetchWeather(lat, lon, false);
+        legend.addTo(map);
+      }
+
+      // --------------------------- Data Fetching -----------------------------
+      async function fetchFIRMS(){
+        try {
+          const res = await fetch(FIRMS_URL, { cache: 'no-store' });
+          if(!res.ok) throw new Error(`FIRMS status ${res.status}`);
+          const data = await res.json();
+          setBadge('status-firms','ok','FIRMS ✅');
+          return data;
+        } catch (e) {
+          console.warn('FIRMS fetch failed', e);
+          setBadge('status-firms','err','FIRMS ❌');
+          return { type:'FeatureCollection', features: [] };
         }
-        console.warn('NOAA fetch error:', err);
-        return null;
       }
-    }
 
-    function formatTemp(tempF) {
-      if (!Number.isFinite(tempF)) return '—';
-      return unit === 'C' ? `${toC(tempF)}°C` : `${Math.round(tempF)}°F`;
-    }
+      async function fetchNOAAHourly(lat, lon){
+        try {
+          const p = await fetch(`https://api.weather.gov/points/${lat},${lon}`, { headers: { 'Accept':'application/geo+json' } });
+          if(!p.ok) throw new Error(`points status ${p.status}`);
+          const meta = await p.json();
+          const hourlyUrl = meta?.properties?.forecastHourly;
+          if(!hourlyUrl) throw new Error('missing forecastHourly');
+          const f = await fetch(hourlyUrl, { cache: 'no-store' });
+          if(!f.ok) throw new Error(`hourly status ${f.status}`);
+          const hourly = await f.json();
+          setBadge('status-noaa','ok','NOAA ✅');
+          return hourly?.properties?.periods?.[0] ?? null;
+        } catch(e) {
+          console.warn('NOAA fetch failed', e);
+          setBadge('status-noaa','warn','NOAA ⚠️'); // why: continue rendering with N/A
+          return null;
+        }
+      }
 
-    function countyCard(name, wx) {
-      const el = document.createElement('div');
-      el.className = 'card';
-      el.innerHTML = wx
-        ? `<strong>${name}</strong><br>${formatTemp(wx.tempF)} · ${wx.rh ?? '—'}% RH · ${wx.wind}<br>${wx.short}`
-        : `<strong>${name}</strong><br>Weather unavailable`;
-      return el;
-    }
+      // --------------------------- Rendering ---------------------------------
+      function renderCardsStart(){ document.getElementById('cards').innerHTML = ''; }
 
-    function skeletonCard(name) {
-      const el = document.createElement('div');
-      el.className = 'card skeleton';
-      el.innerHTML = `<strong>${name}</strong><div style="height:1rem;margin-top:.5rem"></div><div style="height:1rem;margin-top:.5rem;width:70%"></div>`;
-      return el;
-    }
+      function renderCountyCard({ name }, now, hotspotCount){
+        const el = document.createElement('article');
+        el.className = 'card';
+        const summary = now ? `${now.temperature}\u00B0F • ${now.relativeHumidity?.value ?? 'N/A'}% RH • ${now.windSpeed ?? 'N/A'} ${now.windDirection ?? ''}` : 'N/A';
+        const label   = now?.shortForecast ?? 'N/A';
+        el.innerHTML = `
+          <h3>${label.includes('Thunder') ? '⛈️' : '🌤️'} ${name}</h3>
+          <div class="dim">Class: ${label}</div>
+          <div class="metric">Wx: ${summary}</div>
+          <div class="metric">Hotspots (≤ ${BUFFER_KM} km): <strong>${hotspotCount}</strong></div>
+        `;
+        document.getElementById('cards').appendChild(el);
+      }
 
-    function updatePills(results) {
-      const statusEl = $('#statusPill');
-      const extEl = $('#extremesPill');
-      const offline = !navigator.onLine;
-      const age = Date.now() - lastSuccessAt;
-      if (offline) { statusEl.className = 'pill warn'; statusEl.textContent = 'Offline'; }
-      else if (!lastSuccessAt) { statusEl.className = 'pill'; statusEl.textContent = '—'; }
-      else if (age > FRESH_MS) { statusEl.className = 'pill warn'; statusEl.textContent = 'Stale'; }
-      else { statusEl.className = 'pill ok'; statusEl.textContent = 'Fresh'; }
+      function drawBuffersAndCenters(){
+        layers.buffers.clearLayers();
+        layers.centers.clearLayers();
 
-      if (!results || !results.length) { extEl.textContent = '—'; return; }
-      const rhVals = results.map(r => r?.rh).filter(v => Number.isFinite(v));
-      const windVals = results.map(r => r?.windMph).filter(v => Number.isFinite(v));
-      const minRh = rhVals.length ? Math.min(...rhVals) : null;
-      const maxWind = windVals.length ? Math.max(...windVals) : null;
-      const parts = [];
-      if (Number.isFinite(minRh)) parts.push(`Min RH ${minRh}%`);
-      if (Number.isFinite(maxWind)) parts.push(`Max wind ${maxWind} mph`);
-      extEl.textContent = parts.length ? parts.join(' · ') : '—';
-    }
+        const circles = [];
+        for(const c of COUNTIES){
+          const circle = turf.circle([c.lon, c.lat], BUFFER_KM, { units: 'kilometers', steps: 64 });
+          L.geoJSON(circle, { style: { color:'#22c55e', weight:1, fillOpacity:0.08 } }).addTo(layers.buffers);
+          circles.push(circle);
+          L.circleMarker([c.lat,c.lon], { radius:5, color:'#0ea5e9', fillColor:'#0ea5e9', fillOpacity:.9 }).bindTooltip(c.name).addTo(layers.centers);
+        }
+        const bbox = turf.bbox(turf.featureCollection(circles));
+        const sw = [bbox[1], bbox[0]]; const ne = [bbox[3], bbox[2]];
+        map.fitBounds([sw, ne], { padding:[20,20] });
+      }
 
-    function displayCards(results) {
-      const cards = $('#cards');
-      const frag = document.createDocumentFragment();
-      COUNTIES.forEach((c, i) => {
-        const wx = results?.[i] ?? null;
-        frag.appendChild(wx instanceof Object ? countyCard(c.name, wx) : countyCard(c.name, null));
+      function drawHotspots(geojson){
+        layers.hotspots.clearLayers();
+        if(!geojson?.features?.length) return;
+        L.geoJSON(geojson, { pointToLayer:(f,latlng)=> L.circleMarker(latlng, { radius:4, color:'#ef4444', fillColor:'#ef4444', fillOpacity:.85, weight:1 }).bindPopup('🔥 Active fire (FIRMS)') }).addTo(layers.hotspots);
+      }
+
+      // ------------------------------ Logic ----------------------------------
+      async function refresh(){
+        renderCardsStart();
+        const firms = await fetchFIRMS();
+        drawHotspots(firms);
+        drawBuffersAndCenters();
+
+        const features = firms?.features ?? [];
+        for(const county of COUNTIES){
+          const now = await fetchNOAAHourly(county.lat, county.lon);
+          const buffer = turf.circle([county.lon, county.lat], BUFFER_KM, { units: 'kilometers' });
+          const count = features.reduce((acc, f) => {
+            if(!f.geometry || f.geometry.type !== 'Point') return acc;
+            const [x,y] = f.geometry.coordinates; // lon, lat
+            return acc + (turf.booleanPointInPolygon(turf.point([x,y]), buffer) ? 1 : 0);
+          }, 0);
+          renderCountyCard(county, now, count);
+        }
+
+        // Self-check for Brunswick & Greensville
+        const names = [...document.querySelectorAll('#cards .card h3')].map(h => h.textContent);
+        if (!names.some(t => t.includes('Brunswick')) || !names.some(t => t.includes('Greensville'))){
+          showAlert('Self-check failed: Brunswick and/or Greensville not rendered.');
+        }
+      }
+
+      // ------------------------------ Boot -----------------------------------
+      window.addEventListener('DOMContentLoaded', () => {
+        initMap();
+        refresh();
+        setInterval(refresh, 60 * 60 * 1000); // hourly
       });
-      cards.replaceChildren(frag);
-      updatePills(results);
-    }
-
-    // ---- Map helpers ----
-    function applyMapTheme() {
-      if (!map) return;
-      const isDark = document.documentElement.dataset.theme === 'dark';
-      if (isDark) {
-        if (lightLayer && map.hasLayer(lightLayer)) map.removeLayer(lightLayer);
-        if (darkLayer && !map.hasLayer(darkLayer)) darkLayer.addTo(map);
-      } else {
-        if (darkLayer && map.hasLayer(darkLayer)) map.removeLayer(darkLayer);
-        if (lightLayer && !map.hasLayer(lightLayer)) lightLayer.addTo(map);
-      }
-    }
-
-    function firmsViewerUrl(lat, lon, zoom = 10) {
-      const z = Math.max(3, Math.min(13, Math.round(zoom)));
-      return `https://firms.modaps.eosdis.nasa.gov/map/#@${lon.toFixed(3)},${lat.toFixed(3)},${z}z`;
-    }
-    function airnowUrl(lat, lon, zoom = 9) {
-      const z = Math.max(3, Math.min(12, Math.round(zoom)));
-      return `https://fire.airnow.gov/#${z}/${lat.toFixed(3)}/${lon.toFixed(3)}`;
-    }
-
-    async function initMap() {
-      map = L.map('map').setView([37.1, -77.6], 8);
-      lightLayer = L.tileLayer(TILES.light.url, { attribution: TILES.light.attr });
-      darkLayer  = L.tileLayer(TILES.dark.url,  { attribution: TILES.dark.attr  });
-      applyMapTheme();
-
-      // Map click: open FIRMS (Alt-click => AirNow)
-      map.on('click', (e) => {
-        const z = map.getZoom();
-        const url = e.originalEvent && e.originalEvent.altKey
-          ? airnowUrl(e.latlng.lat, e.latlng.lng, z)
-          : firmsViewerUrl(e.latlng.lat, e.latlng.lng, z);
-        window.open(url, '_blank', 'noopener');
-      });
-
-      // FIRMS hotspots in bbox
-      fetch(FIRMS_URL)
-        .then(r => r.json())
-        .then(geo => {
-          const filtered = {
-            ...geo,
-            features: geo.features.filter(f => {
-              const [lon, lat] = f.geometry.coordinates;
-              return lon >= BBOX[0] && lon <= BBOX[2] && lat >= BBOX[1] && lat <= BBOX[3];
-            })
-          };
-          firmsLayer = L.geoJSON(filtered, {
-            pointToLayer: (f, latlng) => {
-              const m = L.circleMarker(latlng, { radius: 4, color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.85 });
-              const [lon, lat] = f.geometry.coordinates;
-              const firmsLink = firmsViewerUrl(lat, lon, 10);
-              const airnowLink = airnowUrl(lat, lon, 9);
-              m.bindPopup(
-                `<strong>🔥 Hotspot</strong><br>
-                 <a href="${firmsLink}" target="_blank" rel="noopener">Open in NASA FIRMS</a><br>
-                 <a href="${airnowLink}" target="_blank" rel="noopener">Open in AirNow Fire Map</a>`
-              );
-              // Primary click shortcut
-              m.on('click', () => window.open(firmsLink, '_blank', 'noopener'));
-              return m;
-            }
-          }).addTo(map);
-        })
-        .catch(err => console.warn('FIRMS fetch error:', err));
-    }
-
-    // ---- Theme & unit ----
-    function applySavedTheme() {
-      const saved = getSavedTheme();
-      if (saved) document.documentElement.dataset.theme = saved;
-      const pressed = document.documentElement.dataset.theme === 'dark';
-      $('#themeBtn').setAttribute('aria-pressed', String(pressed));
-      applyMapTheme();
-    }
-
-    function toggleTheme() {
-      const isDark = document.documentElement.dataset.theme === 'dark';
-      document.documentElement.dataset.theme = isDark ? '' : 'dark';
-      saveTheme(isDark ? '' : 'dark');
-      $('#themeBtn').setAttribute('aria-pressed', String(!isDark));
-      applyMapTheme();
-    }
-
-    function applySavedUnit() {
-      const saved = (getSavedUnit() || 'F').toUpperCase();
-      unit = saved === 'C' ? 'C' : 'F';
-      $('#unitBtn').textContent = `°${unit}`;
-    }
-
-    function toggleUnit() {
-      unit = unit === 'F' ? 'C' : 'F';
-      saveUnit(unit);
-      $('#unitBtn').textContent = `°${unit}`;
-      if (lastResults) displayCards(lastResults);
-    }
-
-    // ---- Render cards ----
-    async function renderCards() {
-      if (inFlight) return;
-      inFlight = true;
-      const spinner = $('#spinner');
-      const cards = $('#cards');
-
-      const skFrag = document.createDocumentFragment();
-      COUNTIES.forEach(c => skFrag.appendChild(skeletonCard(c.name)));
-      cards.replaceChildren(skFrag);
-
-      spinner.style.display = 'block';
-      cards.setAttribute('aria-busy', 'true');
-      $('#updated').textContent = `Last updated: ${fmtStamp()}`;
-
-      try {
-        const settled = await Promise.allSettled(COUNTIES.map(c => fetchWeather(c.lat, c.lon)));
-        const results = settled.map(s => s.status === 'fulfilled' ? s.value : null);
-        lastResults = results;
-        if (results.some(Boolean)) lastSuccessAt = Date.now();
-        displayCards(results);
-      } finally {
-        spinner.style.display = 'none';
-        cards.setAttribute('aria-busy', 'false');
-        inFlight = false;
-      }
-    }
-
-    // ---- Boot ----
-    window.addEventListener('DOMContentLoaded', () => {
-      applySavedTheme();
-      applySavedUnit();
-
-      $('#themeBtn').addEventListener('click', toggleTheme);
-      $('#unitBtn').addEventListener('click', toggleUnit);
-      $('#refreshBtn').addEventListener('click', renderCards);
-
-      window.addEventListener('online', () => updatePills(lastResults));
-      window.addEventListener('offline', () => updatePills(lastResults));
-
-      renderCards();
-      initMap();
-      setInterval(renderCards, 60 * 60 * 1000); // hourly refresh
-
-      // Keyboard shortcuts: R refresh, T theme, U units
-      window.addEventListener('keydown', (e) => {
-        if (e.target && (/input|textarea|select/i).test(e.target.tagName)) return;
-        if (e.key === 'r' || e.key === 'R') { e.preventDefault(); renderCards(); }
-        if (e.key === 't' || e.key === 'T') { e.preventDefault(); toggleTheme(); }
-        if (e.key === 'u' || e.key === 'U') { e.preventDefault(); toggleUnit(); }
-      });
-
-      // Optional: service worker registration (kept minimal)
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js').catch(err => console.warn('SW register failed', err));
-      }
-    });
-  </script>
-
-  <!-- Service worker sample (save as sw.js; unchanged logic OK with external tiles bypassed) -->
-  <!--
-  const CACHE = 'ffwx-v4';
-  const SHELL = ['./','./index.html'];
-  self.addEventListener('install', e => { self.skipWaiting(); e.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL)).catch(()=>{})); });
-  self.addEventListener('activate', e => { e.waitUntil((async()=>{ const keys=await caches.keys(); await Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k))); await self.clients.claim();})()); });
-  async function putFresh(cache, req, res){ try{ const headers=new Headers(res.headers); headers.set('sw-fetched-on', Date.now().toString()); const body=await res.clone().blob(); await cache.put(req,new Response(body,{status:res.status,statusText:res.statusText,headers})); }catch{} }
-  const ALLOWED_HOSTS = new Set([ self.location.hostname, 'api.weather.gov' ]);
-  self.addEventListener('fetch', e => {
-    const req=e.request; if(req.method!=='GET') return; const u=new URL(req.url);
-    const allowed=u.origin===self.location.origin || ALLOWED_HOSTS.has(u.hostname); if(!allowed) return;
-    e.respondWith((async()=>{ const cache=await caches.open(CACHE); const cached=await cache.match(req); const now=Date.now();
-      if(cached){ const fetchedOn=Number(cached.headers.get('sw-fetched-on')||0); const fresh=now-fetchedOn<15*60*1000; if(fresh) return cached;
-        try{ const net=await fetch(req); putFresh(cache,req,net.clone()); return net; }catch{ return cached; } }
-      else { try{ const net=await fetch(req); putFresh(cache,req,net.clone()); return net; }catch{ if(u.origin===self.location.origin) return new Response('Offline', {status:503,statusText:'Offline'}); throw err; } }
-    })());
-  });
-  -->
-</body>
+    </script>
+  </body>
 </html>
