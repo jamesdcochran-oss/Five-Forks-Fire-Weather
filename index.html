@@ -1,4 +1,4 @@
-<!-- /single.html -->
+.<!-- /single.html -->
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -27,7 +27,7 @@ body.dark .badge{
       html,body{height:100%}
       body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:#0f172a}
 
-      .app-header{display:flex;align-items:center;justify-content:space-between;padding:.75rem 1rem;background:#1d4ed8;/* blue-700 *color:#fff <div class="statusbar">
+      .app-header{display:flex;align-items:center;justify-content:space-between;padding:.75rem 1rem;background:#1d4ed8;*/color:#000} class="statusbar">
   <!-- existing badges... -->
   <button id="themeToggle" class="badge">Dark</button>
 </div>}
@@ -67,9 +67,7 @@ body.dark .badge{
         <span id="status-noaa" class="badge" title="NOAA Weather API">NOAA ⏳</span>
         <span id="status-firms" class="badge" title="NASA FIRMS GeoJSON">FIRMS ⏳</span>
         <span id="status-tiles" class="badge" title="Map tiles (OSM)">Tiles ⏳</span>
-        <script>
-        const toggle = document.getElementById('themeToggle');toggle.addEventListener('click', () => {document.body.classList.toggle('dark');toggle.textContent = document.body.classList.contains('dark') ? 'Light' : 'Dark';});
-</script>
+            <button id="themeToggle" class="badge">🌙 Dark</button>
       </div>
     </header>
 
@@ -255,5 +253,15 @@ body.dark .badge{
         setInterval(refresh, 60 * 60 * 1000); // hourly
       });
     </script>
+
+      <script>
+    const toggle = document.getElementById('themeToggle');
+    if (toggle) {
+      toggle.addEventListener('click', () => {
+        document.body.classList.toggle('dark');
+        toggle.textContent = document.body.classList.contains('dark') ? '☀️ Light' : '🌙 Dark';
+      });
+    }
+  </script>
   </body>
 </html>
