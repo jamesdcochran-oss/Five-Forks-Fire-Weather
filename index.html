@@ -173,9 +173,28 @@ body.dark .badge{
         try {
           const res = await fetch(FIRMS_URL, { cache: 'no-store' });
           if(!res.ok) throw new Error(`FIRMS status ${res.status}`);
-          const data = await res.json();
-          setBadge('status-firms','ok','FIRMS ✅');
-          return data;
+        const csvText = await res.text();          setBadge('status-firms','ok','FIRMS ✅');
+                  const lines = csvText.split('\n').filter(line => line.trim());
+                  const headers = lines[0].split(',');
+                  const data = lines.slice(1).map(line => {
+                              const values = line.split(',');
+                              const obj = {};
+                              headers.forEach((header, i) => obj[header.trim()] = values[i]);
+                              return obj;
+                            });
+
+                  // Convert CSV to GeoJSON format
+                  const features = data.map(row => ({
+                              type: 'Feature',
+                              geometry: {
+                                            type: 'Point',
+                                            coordinates: [parseFloat(row.longitude), parseFloat(row.latitude)]
+                                                        },
+                              properties: row
+                                        }));
+
+        setBadge('status-firms','ok','FIRMS ✅');
+              return { type: 'FeatureCollection', features };
         } catch (e) {
           console.warn('FIRMS fetch failed', e);
           setBadge('status-firms','err','FIRMS ❌');
