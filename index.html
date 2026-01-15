@@ -127,8 +127,7 @@ body.dark .badge{
       ];
 
       const BUFFER_KM = 30; // why: conservative proximity window for nearby hotspots
-        const MAP_KEY = "6ec6f9501dda0774853f77ee933238ed"; // NASA FIRMS API Key
-        const FIRMS_URL = `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${MAP_KEY}/VIIRS_SNPP_NRT/world/1`;
+      const FIRMS_URL = "https://firms.modaps.eosdis.nasa.gov/active_fire/c6.1/geojson/MODIS_C6_1_USA_contiguous_and_Hawaii_24h.geojson";
 
       // --------------------------- Status Helpers ----------------------------
       function setBadge(id, state, label){
@@ -171,49 +170,34 @@ body.dark .badge{
 
       // --------------------------- Data Fetching -----------------------------
       async function fetchFIRMS(){
-  try {
-    const res = await fetch(FIRMS_URL, { cache: 'no-store' });
-    if(!res.ok) throw new Error(`FIRMS status ${res.status}`);
-    const csvText = await res.text();
-    // Parse CSV and convert to GeoJSON
-    const lines = csvText.trim().split('\n');
-    if(lines.length < 2) { setBadge('status-firms','err','FIRMS ❌'); return { type:'FeatureCollection', features: [] }; }
-    const headers = lines[0].split(',');
-    const features = lines.slice(1).map(line => {
-      const values = line.split(',');
-      const lat = parseFloat(values[0]);
-      const lon = parseFloat(values[1]);
-      if(isNaN(lat) || isNaN(lon)) return null;
-      return {
-        type: 'Feature',
-        geometry: { type: 'Point', coordinates: [lon, lat] },
-        properties: { source: 'FIRMS' }
-      };
-    }).filter(f => f !== null);
-    setBadge('status-firms','ok','FIRMS ✅');
-    return { type: 'FeatureCollection', features };
-  } catch (e) {
-    console.warn('FIRMS fetch failed', e);
-    setBadge('status-firms','err','FIRMS ❌');
-    return { type:'FeatureCollection', features: [] };
-  }
+        try {
+          const res = await fetch(FIRMS_URL, { cache: 'no-store' });
+          if(!res.ok) throw new Error(`FIRMS status ${res.status}`);
+          const data = await res.json();
+          setBadge('status-firms','ok','FIRMS ✅');
+          return data;
+        } catch (e) {
+          console.warn('FIRMS fetch failed', e);
+          setBadge('status-firms','err','FIRMS ❌');
+          return { type:'FeatureCollection', features: [] };
+        }
+      }
 
+      async function fetchNOAAHourly(lat, lon){
+        try {
+          const p = await fetch(`https://api.weather.gov/points/${lat},${lon}`, { headers: { 'Accept':'application/geo+json' } });
+          if(!p.ok) throw new Error(`points status ${p.status}`);
+          const meta = await p.json();
+          const hourlyUrl = meta?.properties?.forecastHourly;
+          if(!hourlyUrl) throw new Error('missing forecastHourly');
+          const f = await fetch(hourlyUrl, { cache: 'no-store' });
+          if(!f.ok) throw new Error(`hourly status ${f.status}`);
+          const hourly = await f.json();
+          setBadge('status-noaa','ok','NOAA ✅');
+          return hourly?.properties?.periods?.[0] ?? null;
         } catch(e) {
           console.warn('NOAA fetch failed', e);
           setBadge('status-noaa','warn','NOAA ⚠️'); // why: continue rendering with N/A
-        async function fetchNOAAHourly(lat, lon){
-    try {
-      const p = await fetch(`https://api.weather.gov/points/${lat},${lon}`, { headers: { 'Accept':'application/geo+json' } });
-      if(!p.ok) throw new Error(`points status ${p.status}`);
-      const meta = await p.json();
-      const hourlyUrl = meta?.properties?.forecastHourly;
-      if(!hourlyUrl) throw new Error('missing forecastHourly');
-      const f = await fetch(hourlyUrl, { cache: 'no-store' });
-      if(!f.ok) throw new Error(`hourly status ${f.status}`);
-      const hourly = await f.json();
-      setBadge('status-noaa','ok','NOAA ✅');
-      return hourly?.properties?.periods?.[0] ?? null;
-    
           return null;
         }
       }
