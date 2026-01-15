@@ -33,6 +33,7 @@ body.dark .badge{
 </div>}
       .app-header h1{margin:0;font-size:1.15rem}
       .statusbar{display:flex;gap:.5rem;align-items:center}
+      .quick-links{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
       .badge{padding:.25rem .5rem;border-radius:999px;font-size:.8rem;box-shadow:var(--shadow);background:#e5e7eb;color:var(--neutral)}
       .badge.ok{color:#fff;background:var(--ok)}
       .badge.warn{color:#fff;background:var(--warn)}
@@ -63,13 +64,13 @@ body.dark .badge{
   <body>
     <header class="app-header">
       <h1>🔥 Five Forks Fire Weather</h1>
-      <div class="statusbar" aria-live="polite">
-        <span id="status-noaa" class="badge" title="NOAA Weather API">NOAA ⏳</span>
-        <span id="status-firms" class="badge" title="NASA FIRMS GeoJSON">FIRMS ⏳</span>
-        <span id="status-tiles" class="badge" title="Map tiles (OSM)">Tiles ⏳</span>
-            <button id="themeToggle" class="badge">🌙 Dark</button>
-      </div>
-    </header>
+    <div class="quick-links">
+      <a href="https://firms.modaps.eosdis.nasa.gov/map/" target="_blank" class="badge" style="text-decoration:none">🛰️ FIRMS</a>
+      <a href="https://www.weather.gov/akq/" target="_blank" class="badge" style="text-decoration:none">🌧️ NWS</a>
+      <a href="https://maps.app.goo.gl/vcWebUQrrLSY8gX4A" target="_blank" class="badge" style="text-decoration:none">🗺️ Equip</a>
+      <a href="https://www.windy.com/?37.233,-77.400,8" target="_blank" class="badge" style="text-decoration:none">🌪️ Windy</a>
+      <button id="themeToggle" class="badge">🌙 Dark</button>
+    </div>    </header>
 
     <main>
       <section id="cards" class="cards" aria-label="County conditions"></section>
@@ -80,6 +81,11 @@ body.dark .badge{
     </main>
 
     <footer class="app-footer">
+          <div class="statusbar" style="text-align:center;margin-bottom:0.5rem" aria-live="polite">
+      <span id="status-noaa" class="badge" title="NOAA Weather API">NOAA ⏳</span>
+      <span id="status-firms" class="badge" title="NASA FIRMS GeoJSON">FIRMS ⏳</span>
+      <span id="status-tiles" class="badge" title="Map tiles (OSM)">Tiles ⏳</span>
+    </div>
       <small>Data: NOAA NWS & NASA FIRMS · Auto-refresh hourly</small>
     </footer>
 
