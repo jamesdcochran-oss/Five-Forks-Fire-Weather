@@ -127,7 +127,8 @@ body.dark .badge{
       ];
 
       const BUFFER_KM = 30; // why: conservative proximity window for nearby hotspots
-      const FIRMS_URL = "https://firms.modaps.eosdis.nasa.gov/active_fire/c6.1/geojson/MODIS_C6_1_USA_contiguous_and_Hawaii_24h.geojson";
+        const MAP_KEY = "6ec6f9501dda0774853f77ee933238ed"; // NASA FIRMS API Key
+        const FIRMS_URL = `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${MAP_KEY}/VIIRS_SNPP_NRT/world/1`;
 
       // --------------------------- Status Helpers ----------------------------
       function setBadge(id, state, label){
@@ -174,18 +175,6 @@ body.dark .badge{
           const res = await fetch(FIRMS_URL, { cache: 'no-store' });
           if(!res.ok) throw new Error(`FIRMS status ${res.status}`);
           const data = await res.json();
-          setBadge('status-firms','ok','FIRMS ✅');
-          return data;
-        } catch (e) {
-          console.warn('FIRMS fetch failed', e);
-          setBadge('status-firms','err','FIRMS ❌');
-          return { type:'FeatureCollection', features: [] };
-        }
-      }
-
-      async function fetchNOAAHourly(lat, lon){
-        try {
-          const p = await fetch(`https://api.weather.gov/points/${lat},${lon}`, { headers: { 'Accept':'application/geo+json' } });
           if(!p.ok) throw new Error(`points status ${p.status}`);
           const meta = await p.json();
           const hourlyUrl = meta?.properties?.forecastHourly;
