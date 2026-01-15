@@ -15,22 +15,45 @@
          - Map tiles: OpenStreetMap via Leaflet
          - Includes Brunswick & Greensville; self-check ensures both render
       */
-      :root { --bg:#f9fafb; --card:#ffffff; --muted:#6b7280; --shadow:0 2px 6px rgba(0,0,0,.08); --ok:#16a34a; --warn:#d97706; --err:#dc2626; --neutral:#475569; --header-bg:#1d4ed8; } 
+      :root {
+        --bg:#f9fafb;
+        --card:#ffffff;
+        --muted:#6b7280;
+        --shadow:0 2px 6px rgba(0,0,0,.08);
+        --ok:#16a34a;
+        --warn:#d97706;
+        --err:#dc2626;
+        --neutral:#475569;
+        --header-bg:#1d4ed8;
+      }
+
       /* Dark mode overrides */
-body.dark{--bg:#020617;--card:#020617;--muted:#9ca3af;--neutral:#e5e7eb;--header-bg:#020617;color:#e5e7eb;
-}
-body.dark .badge{
-  background:#111827;
-  color:var(--neutral);
-}
+      body.dark {
+        --bg:#020617;
+        --card:#020617;
+        --muted:#9ca3af;
+        --neutral:#e5e7eb;
+        --header-bg:#020617;
+        color:#e5e7eb;
+      }
+      body.dark .badge{
+        background:#111827;
+        color:var(--neutral);
+      }
+
       *{box-sizing:border-box}
       html,body{height:100%}
       body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:#0f172a}
 
-      .app-header{display:flex;align-items:center;justify-content:space-between;padding:.75rem 1rem;background:#1d4ed8;*/color:#000} class="statusbar">
-  <!-- existing badges... -->
-  <button id="themeToggle" class="badge">Dark</button>
-</div>}
+      .app-header{
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        padding:.75rem 1rem;
+        background:#1d4ed8;
+        color:#fff;
+      }
+
       .app-header h1{margin:0;font-size:1.15rem}
       .statusbar{display:flex;gap:.5rem;align-items:center}
       .quick-links{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
@@ -55,21 +78,20 @@ body.dark .badge{
       .alerts{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;padding:.75rem;border-radius:8px;box-shadow:var(--shadow)}
       .app-footer{text-align:center;color:var(--muted);padding:.75rem}
 
-
-          /* Mobile optimizations */
-    @media (max-width:768px){
-      .app-header{flex-direction:column;gap:.75rem;padding:1rem}
-      .app-header h1{font-size:1.5rem;text-align:center}
-      .quick-links{justify-content:center;width:100%}
-      .quick-links .badge{font-size:.75rem;padding:.2rem .4rem}
-      main{padding:.75rem;gap:.75rem}
-      .cards{grid-template-columns:1fr;gap:.75rem}
-      .card{padding:.75rem}
-      .map-wrap{height:300px;margin-bottom:1rem}
-      .app-footer{padding:.5rem;font-size:.85rem}
-      .statusbar{flex-wrap:wrap;gap:.35rem;justify-content:center}
-      .statusbar .badge{font-size:.7rem;padding:.2rem .4rem}
-    }
+      /* Mobile optimizations */
+      @media (max-width:768px){
+        .app-header{flex-direction:column;gap:.75rem;padding:1rem}
+        .app-header h1{font-size:1.5rem;text-align:center}
+        .quick-links{justify-content:center;width:100%}
+        .quick-links .badge{font-size:.75rem;padding:.2rem .4rem}
+        main{padding:.75rem;gap:.75rem}
+        .cards{grid-template-columns:1fr;gap:.75rem}
+        .card{padding:.75rem}
+        .map-wrap{height:300px;margin-bottom:1rem}
+        .app-footer{padding:.5rem;font-size:.85rem}
+        .statusbar{flex-wrap:wrap;gap:.35rem;justify-content:center}
+        .statusbar .badge{font-size:.7rem;padding:.2rem .4rem}
+      }
       @media (min-width:960px){
         main{grid-template-columns:1.2fr 1fr;align-items:start}
         .map-wrap{grid-row:span 2}
@@ -79,13 +101,14 @@ body.dark .badge{
   <body>
     <header class="app-header">
       <h1>🔥 Five Forks Fire Weather</h1>
-    <div class="quick-links">
-      <a href="https://firms.modaps.eosdis.nasa.gov/map/" target="_blank" class="badge" style="text-decoration:none">🛰️ FIRMS</a>
-      <a href="https://www.weather.gov/akq/" target="_blank" class="badge" style="text-decoration:none">🌧️ NWS</a>
-      <a href="https://maps.app.goo.gl/vcWebUQrrLSY8gX4A" target="_blank" class="badge" style="text-decoration:none">🗺️ Equip</a>
-      <a href="https://www.windy.com/?37.233,-77.400,8" target="_blank" class="badge" style="text-decoration:none">🌪️ Windy</a>
-      <button id="themeToggle" class="badge">🌙 Dark</button>
-    </div>    </header>
+      <div class="quick-links">
+        <a href="https://firms.modaps.eosdis.nasa.gov/map/" target="_blank" class="badge" style="text-decoration:none">🛰️ FIRMS</a>
+        <a href="https://www.weather.gov/akq/" target="_blank" class="badge" style="text-decoration:none">🌧️ NWS</a>
+        <a href="https://maps.app.goo.gl/vcWebUQrrLSY8gX4A" target="_blank" class="badge" style="text-decoration:none">🗺️ Equip</a>
+        <a href="https://www.windy.com/?37.233,-77.400,8" target="_blank" class="badge" style="text-decoration:none">🌪️ Windy</a>
+        <button id="themeToggle" class="badge">🌙 Dark</button>
+      </div>
+    </header>
 
     <main>
       <section id="cards" class="cards" aria-label="County conditions"></section>
@@ -96,11 +119,11 @@ body.dark .badge{
     </main>
 
     <footer class="app-footer">
-          <div class="statusbar" style="text-align:center;margin-bottom:0.5rem" aria-live="polite">
-      <span id="status-noaa" class="badge" title="NOAA Weather API">NOAA ⏳</span>
-      <span id="status-firms" class="badge" title="NASA FIRMS GeoJSON">FIRMS ⏳</span>
-      <span id="status-tiles" class="badge" title="Map tiles (OSM)">Tiles ⏳</span>
-    </div>
+      <div class="statusbar" style="text-align:center;margin-bottom:0.5rem" aria-live="polite">
+        <span id="status-noaa" class="badge" title="NOAA Weather API">NOAA ⏳</span>
+        <span id="status-firms" class="badge" title="NASA FIRMS GeoJSON">FIRMS ⏳</span>
+        <span id="status-tiles" class="badge" title="Map tiles (OSM)">Tiles ⏳</span>
+      </div>
       <small>Data: NOAA NWS & NASA FIRMS · Auto-refresh hourly</small>
     </footer>
 
@@ -126,15 +149,17 @@ body.dark .badge{
         { name: "Greensville",   lat: 36.686, lon: -77.542 },
       ];
 
-      const BUFFER_KM = 30; // why: conservative proximity window for nearby hotspots
-      const FIRMS_URL = "https://firms.modaps.eosdis.nasa.gov/api/area/csv/6ec6f9501dda0774853f77ee933238ed/MODIS_NRT/-79,36,-77,38/1";
+      const BUFFER_KM = 30; // conservative proximity window for nearby hotspots
+
+      // FIRMS endpoint referenced in the original file (appears to be geojson)
+      const FIRMS_URL = "https://firms.modaps.eosdis.nasa.gov/api/area/geojson/6ec6f9501dda0774853f77ee933238ed/MODIS_NRT/-79,36,-77,38/1";
 
       // --------------------------- Status Helpers ----------------------------
       function setBadge(id, state, label){
         const el = document.getElementById(id);
         if(!el) return;
         el.classList.remove('ok','warn','err');
-        el.classList.add(state);
+        if (state) el.classList.add(state);
         if(label) el.textContent = label;
       }
       function showAlert(msg){ const box = document.getElementById('alerts'); if(!box) return; box.hidden = false; box.textContent = msg; }
@@ -169,32 +194,49 @@ body.dark .badge{
       }
 
       // --------------------------- Data Fetching -----------------------------
+      // FIRMS: attempt to parse JSON (geojson); if that fails, fall back to CSV parsing
       async function fetchFIRMS(){
         try {
           const res = await fetch(FIRMS_URL, { cache: 'no-store' });
           if(!res.ok) throw new Error(`FIRMS status ${res.status}`);
-        const csvText = await res.text();          setBadge('status-firms','ok','FIRMS ✅');
-                  const lines = csvText.split('\n').filter(line => line.trim());
-                  const headers = lines[0].split(',');
-                  const data = lines.slice(1).map(line => {
-                              const values = line.split(',');
-                              const obj = {};
-                              headers.forEach((header, i) => obj[header.trim()] = values[i]);
-                              return obj;
-                            });
+          const text = await res.text();
 
-                  // Convert CSV to GeoJSON format
-                  const features = data.map(row => ({
-                              type: 'Feature',
-                              geometry: {
-                                            type: 'Point',
-                                            coordinates: [parseFloat(row.longitude), parseFloat(row.latitude)]
-                                                        },
-                              properties: row
-                                        }));
+          // Try JSON first (geojson endpoint expected)
+          try {
+            const geojson = JSON.parse(text);
+            if (geojson && Array.isArray(geojson.features)) {
+              setBadge('status-firms','ok','FIRMS ✅');
+              return geojson;
+            }
+            // If parsed value isn't valid, fall through to CSV fallback
+          } catch (e) {
+            // not JSON — continue to CSV parsing below
+          }
 
-        setBadge('status-firms','ok','FIRMS ✅');
-              return { type: 'FeatureCollection', features };
+          // CSV fallback parsing (handles some FIRMS endpoints that return CSV)
+          const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+          if (lines.length <= 1) {
+            setBadge('status-firms','ok','FIRMS ✅');
+            return { type: 'FeatureCollection', features: [] };
+          }
+          const headers = lines[0].split(',').map(h => h.trim());
+          const data = lines.slice(1).map(line => {
+            const values = line.split(',');
+            const obj = {};
+            headers.forEach((header, i) => obj[header] = values[i]);
+            return obj;
+          });
+          const features = data.map(row => ({
+            type: 'Feature',
+            geometry: {
+              type: 'Point',
+              coordinates: [parseFloat(row.longitude), parseFloat(row.latitude)]
+            },
+            properties: row
+          })).filter(f => Number.isFinite(f.geometry.coordinates[0]) && Number.isFinite(f.geometry.coordinates[1]));
+
+          setBadge('status-firms','ok','FIRMS ✅');
+          return { type: 'FeatureCollection', features };
         } catch (e) {
           console.warn('FIRMS fetch failed', e);
           setBadge('status-firms','err','FIRMS ❌');
@@ -202,21 +244,27 @@ body.dark .badge{
         }
       }
 
+      // NOAA: include User-Agent (per api.weather.gov guidance). Replace contact URL/email as appropriate.
+      const NOAA_HEADERS = {
+        'Accept': 'application/geo+json',
+        'User-Agent': 'Five-Forks-Fire-Weather (https://github.com/jamesdcochran-oss/Five-Forks-Fire-Weather)'
+      };
+
       async function fetchNOAAHourly(lat, lon){
         try {
-          const p = await fetch(`https://api.weather.gov/points/${lat},${lon}`, { headers: { 'Accept':'application/geo+json' } });
+          const p = await fetch(`https://api.weather.gov/points/${lat},${lon}`, { headers: NOAA_HEADERS });
           if(!p.ok) throw new Error(`points status ${p.status}`);
           const meta = await p.json();
           const hourlyUrl = meta?.properties?.forecastHourly;
           if(!hourlyUrl) throw new Error('missing forecastHourly');
-          const f = await fetch(hourlyUrl, { cache: 'no-store' });
+          const f = await fetch(hourlyUrl, { cache: 'no-store', headers: NOAA_HEADERS });
           if(!f.ok) throw new Error(`hourly status ${f.status}`);
           const hourly = await f.json();
           setBadge('status-noaa','ok','NOAA ✅');
           return hourly?.properties?.periods?.[0] ?? null;
         } catch(e) {
           console.warn('NOAA fetch failed', e);
-          setBadge('status-noaa','warn','NOAA ⚠️'); // why: continue rendering with N/A
+          setBadge('status-noaa','warn','NOAA ⚠️'); // continue rendering with N/A
           return null;
         }
       }
@@ -257,7 +305,21 @@ body.dark .badge{
       function drawHotspots(geojson){
         layers.hotspots.clearLayers();
         if(!geojson?.features?.length) return;
-        L.geoJSON(geojson, { pointToLayer:(f,latlng)=> L.circleMarker(latlng, { radius:4, color:'#ef4444', fillColor:'#ef4444', fillOpacity:.85, weight:1 }).bindPopup('🔥 Active fire (FIRMS)') }).addTo(layers.hotspots);
+        L.geoJSON(geojson, {
+          filter: f => f && f.geometry && f.geometry.type === 'Point',
+          pointToLayer: (f, latlng) => {
+            const marker = L.circleMarker(latlng, {
+              radius:4, color:'#ef4444', fillColor:'#ef4444', fillOpacity:.85, weight:1
+            });
+            const props = f.properties || {};
+            const time = props.acq_date ? `${props.acq_date} ${props.acq_time ?? ''}` : (props.time ?? '');
+            const instrument = props.instrument || props.satellite || '';
+            const confidence = props.confidence ? `• ${props.confidence}` : (props.confidence_level ? `• ${props.confidence_level}` : '');
+            const popup = `<strong>🔥 Active fire</strong><br>${time}<br>${instrument} ${confidence}`.trim();
+            marker.bindPopup(popup);
+            return marker;
+          }
+        }).addTo(layers.hotspots);
       }
 
       // ------------------------------ Logic ----------------------------------
@@ -283,6 +345,9 @@ body.dark .badge{
         const names = [...document.querySelectorAll('#cards .card h3')].map(h => h.textContent);
         if (!names.some(t => t.includes('Brunswick')) || !names.some(t => t.includes('Greensville'))){
           showAlert('Self-check failed: Brunswick and/or Greensville not rendered.');
+        } else {
+          // hide alert if present
+          const box = document.getElementById('alerts'); if (box) { box.hidden = true; }
         }
       }
 
@@ -294,14 +359,15 @@ body.dark .badge{
       });
     </script>
 
-      <script>
-    const toggle = document.getElementById('themeToggle');
-    if (toggle) {
-      toggle.addEventListener('click', () => {
-        document.body.classList.toggle('dark');
-        toggle.textContent = document.body.classList.contains('dark') ? '☀️ Light' : '🌙 Dark';
-      });
-    }
-  </script>
+    <script>
+      // Theme toggle
+      const toggle = document.getElementById('themeToggle');
+      if (toggle) {
+        toggle.addEventListener('click', () => {
+          document.body.classList.toggle('dark');
+          toggle.textContent = document.body.classList.contains('dark') ? '☀️ Light' : '🌙 Dark';
+        });
+      }
+    </script>
   </body>
 </html>
