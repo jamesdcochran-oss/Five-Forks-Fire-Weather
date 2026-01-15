@@ -201,6 +201,19 @@ body.dark .badge{
         } catch(e) {
           console.warn('NOAA fetch failed', e);
           setBadge('status-noaa','warn','NOAA ⚠️'); // why: continue rendering with N/A
+        async function fetchNOAAHourly(lat, lon){
+    try {
+      const p = await fetch(`https://api.weather.gov/points/${lat},${lon}`, { headers: { 'Accept':'application/geo+json' } });
+      if(!p.ok) throw new Error(`points status ${p.status}`);
+      const meta = await p.json();
+      const hourlyUrl = meta?.properties?.forecastHourly;
+      if(!hourlyUrl) throw new Error('missing forecastHourly');
+      const f = await fetch(hourlyUrl, { cache: 'no-store' });
+      if(!f.ok) throw new Error(`hourly status ${f.status}`);
+      const hourly = await f.json();
+      setBadge('status-noaa','ok','NOAA ✅');
+      return hourly?.properties?.periods?.[0] ?? null;
+    
           return null;
         }
       }
