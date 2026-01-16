@@ -310,8 +310,18 @@
               radius:4, color:'#ef4444', fillColor:'#ef4444', fillOpacity:.85, weight:1
             });
             const props = f.properties || {};
-            const time = props.acq_date ? `${props.acq_date} ${props.acq_time ?? ''}` : (props.time ?? '');
-            const instrument = props.instrument || props.satellite || '';
+      // Convert UTC time to local time
+      let timeStr = '';
+      if (props.acq_date && props.acq_time) {
+        const dateStr = `${props.acq_date}T${props.acq_time.slice(0,2)}:${props.acq_time.slice(2,4)}:00Z`;
+        const utcDate = new Date(dateStr);
+        const localTime = utcDate.toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: true });
+        const localDate = utcDate.toLocaleDateString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric' });
+        timeStr = `${localDate} ${localTime} EST`;
+      } else if (props.time) {
+        timeStr = props.time;
+      }
+      const time = timeStr;            const instrument = props.instrument || props.satellite || '';
             const confidence = props.confidence ? `• ${props.confidence}` : (props.confidence_level ? `• ${props.confidence_level}` : '');
             const popup = `<strong>🔥 Active fire</strong><br>${time}<br>${instrument} ${confidence}`.trim();
             marker.bindPopup(popup);
