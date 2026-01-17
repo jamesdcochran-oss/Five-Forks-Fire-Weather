@@ -276,6 +276,32 @@
         el.className = 'card';
         const summary = now ? `${now.temperature}\u00B0F • ${now.relativeHumidity?.value ?? 'N/A'}% RH • ${now.windSpeed ?? 'N/A'} ${now.windDirection ?? ''}` : 'N/A';
         const label   = now?.shortForecast ?? 'N/A';
+            
+    // Fire behavior calculations
+    let fireBehaviorHTML = '';
+    if (now && window.FiveForksFireBehavior) {
+        const temp = now.temperature;
+        const rh = now.relativeHumidity?.value ?? 50;
+        const wind = parseInt(now.windSpeed) || 10;
+        
+        // Calculate for leaf/pine litter (most common VA fuel)
+        const fb = window.FiveForksFireBehavior.calculateFireBehavior(
+            temp, rh, wind, 'leaf_pine_litter', 15.0
+        );
+        
+        if (fb) {
+            fireBehaviorHTML = `
+                <div class="metric" style="margin-top:0.5rem; padding-top:0.5rem; border-top:1px solid #e5e7eb;">
+                    <div style="font-size:0.85rem; color:var(--muted);">🔥 Fire Behavior (Leaf/Pine)</div>
+                    <div style="display:flex; gap:0.75rem; flex-wrap:wrap; margin-top:0.25rem;">
+                        <span style="color:${fb.dangerColor}; font-weight:600;">${fb.dangerIcon} ${fb.dangerLevel}</span>
+                        <span style="font-size:0.9rem;">1-hr: ${fb.m1}%</span>
+                        <span style="font-size:0.9rem;">ROS: ${fb.rosChPerHour} ch/h</span>
+                    </div>
+                </div>
+            `;
+        }
+    
         el.innerHTML = `
           <h3>${label.includes('Thunder') ? '⛈️' : '🌤️'} ${name}</h3>
           <div class="dim">Class: ${label}</div>
