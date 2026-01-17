@@ -101,6 +101,10 @@
       #fuelCalcModal .modal-close { position:absolute; right:.5rem; top:.5rem; background:transparent; border:none; font-size:1.2rem; cursor:pointer; }
       #resultsTable table { width:100%; border-collapse:collapse; }
       #resultsTable th, #resultsTable td { padding:.25rem .5rem; text-align:left; border-bottom:1px solid #eee }
+      
+      /* Ensure Leaflet controls are visible above other map elements */
+      .leaflet-control-container { z-index: 1000; }
+      .leaflet-control { z-index: 1000; }
     </style>
   </head>
   <body>
@@ -170,6 +174,12 @@
       ];
 
       const BUFFER_KM = 30; // conservative proximity window for nearby hotspots
+
+      // Precompute Turf buffers for performance (instead of computing in the loop)
+      const COUNTY_BUFFERS = COUNTIES.map(c => ({
+        county: c,
+        buffer: turf.circle([c.lon, c.lat], BUFFER_KM, { units: 'kilometers' })
+      }));
 
       // FIRMS endpoint referenced in the original file (appears to be geojson)
       const FIRMS_URL = "https://firms.modaps.eosdis.nasa.gov/api/area/csv/6ec6f9501dda0774853f77ee933238ed/VIIRS_NOAA20_NRT/-78.5,36.0,-77,37.5/1";
@@ -333,9 +343,9 @@
         drawBuffersAndCenters();
 
         const features = firms?.features ?? [];
-        for(const county of COUNTIES){
+        for(const { county, buffer } of COUNTY_BUFFERS){
           const now = await fetchNOAAHourly(county.lat, county.lon);
-          const buffer = turf.circle([county.lon, county.lat], BUFFER_KM, { units: 'kilometers' });
+          // Use precomputed buffer instead of computing on each iteration
           const count = features.reduce((acc, f) => {
             if(!f.geometry || f.geometry.type !== 'Point') return acc;
             const [x,y] = f.geometry.coordinates; // lon, lat
@@ -371,45 +381,134 @@
 
     <!-- Modal open/close and wiring script -->
     <script>
-      // Open modal and ensure the calculator UI wiring runs
-      document.getElementById('openFuelCalc')?.addEventListener('click', () => {
-        const m = document.getElementById('fuelCalcModal');
-        if (!m) return;
-        m.style.display = 'flex';
-        try { if (typeof wireUI === 'function') wireUI(); } catch(e){ console.warn('wireUI error', e); }
-      });
+      // Track the element that opened the modal for focus restoration
+      let modalOpener = null;
 
-      // Close modal
-      document.getElementById('modalCloseBtn')?.addEventListener('click', () => {
-        const m = document.getElementById('fuelCalcModal');
-        if (m) m.style.display = 'none';
-      });
+      // Helper to get all focusable elements within the modal
+      function getFocusableElements(container) {
+        const selector = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+        return Array.from(container.querySelectorAll(selector)).filter(el => !el.disabled);
+      }
 
-      // Close modal by clicking outside content
-      document.getElementById('fuelCalcModal')?.addEventListener('click', (e) => {
-        if (e.target && e.target.id === 'fuelCalcModal') {
-          e.target.style.display = 'none';
-        }
-      });
-
-      // Safety: if fuel-calculator.js didn't auto-wire (older versions), attempt to call wireUI on DOMContentLoaded
-      if (typeof document !== 'undefined') {
-        if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', () => {
-            try { if (typeof wireUI === 'function') wireUI(); } catch (e) { /* ignore */ }
-          });
-        } else {
-          try { if (typeof wireUI === 'function') wireUI(); } catch (e) { /* ignore */ }
+      // Focus trap handler
+      function trapFocus(event) {
+        const modal = document.getElementById('fuelCalcModal');
+        if (!modal || modal.style.display === 'none') return;
+        
+        const modalContent = modal.querySelector('.modal-content');
+        if (!modalContent) return;
+        
+        const focusableElements = getFocusableElements(modalContent);
+        if (focusableElements.length === 0) return;
+        
+        const firstElement = focusableElements[0];
+        const lastElement = focusableElements[focusableElements.length - 1];
+        
+        if (event.key === 'Tab') {
+          if (event.shiftKey) {
+            // Shift+Tab: if on first element, go to last
+            if (document.activeElement === firstElement) {
+              event.preventDefault();
+              lastElement.focus();
+            }
+          } else {
+            // Tab: if on last element, go to first
+            if (document.activeElement === lastElement) {
+              event.preventDefault();
+              firstElement.focus();
+            }
+          }
         }
       }
+
+      // Close modal and restore focus
+      function closeModal() {
+        const modal = document.getElementById('fuelCalcModal');
+        if (!modal) return;
+        
+        modal.style.display = 'none';
+        modal.setAttribute('aria-hidden', 'true');
+        
+        // Remove focus trap listener
+        document.removeEventListener('keydown', trapFocus);
+        document.removeEventListener('keydown', handleEscapeKey);
+        
+        // Restore focus to the opener button
+        if (modalOpener) {
+          modalOpener.focus();
+          modalOpener = null;
+        }
+      }
+
+      // Handle Escape key to close modal
+      function handleEscapeKey(event) {
+        if (event.key === 'Escape') {
+          closeModal();
+        }
+      }
+
+      // Open modal and ensure the calculator UI wiring runs
+      document.addEventListener('DOMContentLoaded', () => {
+        const openBtn = document.getElementById('openFuelCalc');
+        if (openBtn) {
+          openBtn.addEventListener('click', () => {
+            const modal = document.getElementById('fuelCalcModal');
+            if (!modal) return;
+            
+            // Save the opener for focus restoration
+            modalOpener = openBtn;
+            
+            // Show modal
+            modal.style.display = 'flex';
+            modal.setAttribute('aria-hidden', 'false');
+            
+            // Wire UI using namespaced API
+            try {
+              if (window.FuelMoistureCalculator && typeof window.FuelMoistureCalculator.wireUI === 'function') {
+                window.FuelMoistureCalculator.wireUI();
+              }
+            } catch (e) {
+              console.warn('wireUI error', e);
+            }
+            
+            // Set focus to modal content
+            const modalContent = modal.querySelector('.modal-content');
+            if (modalContent) {
+              modalContent.focus();
+            }
+            
+            // Add focus trap listener
+            document.addEventListener('keydown', trapFocus);
+            
+            // Add Escape key listener
+            document.addEventListener('keydown', handleEscapeKey);
+          });
+        }
+
+        // Close modal button
+        const closeBtn = document.getElementById('modalCloseBtn');
+        if (closeBtn) {
+          closeBtn.addEventListener('click', closeModal);
+        }
+
+        // Close modal by clicking outside content
+        const modal = document.getElementById('fuelCalcModal');
+        if (modal) {
+          modal.addEventListener('click', (e) => {
+            if (e.target && e.target.id === 'fuelCalcModal') {
+              closeModal();
+            }
+          });
+        }
+      });
     </script>
 
     <!-- Fuel Moisture Calculator modal DOM (placed near end so it's available for the wiring script above) -->
-    <div id="fuelCalcModal" aria-hidden="true">
-      <div class="modal-content">
+    <div id="fuelCalcModal" role="dialog" aria-modal="true" aria-labelledby="fuelCalcTitle" aria-hidden="true">
+      <div class="modal-content" tabindex="-1">
         <button id="modalCloseBtn" class="modal-close" aria-label="Close modal">✖</button>
         <div id="fuelCalcUI" style="padding-top:1.5rem;">
-          <h2>Fuel Moisture Calculator</h2>
+          <h2 id="fuelCalcTitle">Fuel Moisture Calculator</h2>
 
           <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:0.75rem;">
             <label>Initial 1‑hr: <input id="initial1hr" type="number" value="8" style="width:4rem"></label>

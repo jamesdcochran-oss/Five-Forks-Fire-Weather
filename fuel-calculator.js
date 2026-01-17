@@ -227,11 +227,19 @@
   }
 
   function wireUI() {
+    // Idempotent wiring: check if already wired
+    const forecastTable = document.getElementById('forecastDays');
+    if (forecastTable && forecastTable.dataset.wired === 'true') {
+      return; // Already wired, skip
+    }
+
     // Populate forecast inputs if present
     populateDefaultForecastTable(5);
+    if (forecastTable) forecastTable.dataset.wired = 'true';
 
     const runBtn = document.getElementById('runModelBtn');
-    if (runBtn) {
+    if (runBtn && !runBtn.dataset.wired) {
+      runBtn.dataset.wired = 'true';
       runBtn.addEventListener('click', () => {
         const initial1Input = document.getElementById('initial1hr')?.value ?? '';
         const initial10Input = document.getElementById('initial10hr')?.value ?? '';
@@ -251,10 +259,13 @@
 
     // In case the modal provides a close button with id 'modalCloseBtn', let it hide the modal
     const modalClose = document.getElementById('modalCloseBtn');
-    if (modalClose) modalClose.addEventListener('click', () => {
-      const modal = document.getElementById('fuelCalcModal');
-      if (modal) modal.style.display = 'none';
-    });
+    if (modalClose && !modalClose.dataset.wired) {
+      modalClose.dataset.wired = 'true';
+      modalClose.addEventListener('click', () => {
+        const modal = document.getElementById('fuelCalcModal');
+        if (modal) modal.style.display = 'none';
+      });
+    }
   }
 
   // ---------- Expose API ----------
@@ -293,15 +304,7 @@
     // nothing extra needed; root is the global object passed in by the IIFE
   }
 
-  // Auto-wire when DOM is ready (safe-guarded)
-  if (typeof document !== 'undefined') {
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', () => {
-        try { wireUI(); } catch (e) { /* ignore wiring errors */ }
-      });
-    } else {
-      try { wireUI(); } catch (e) { /* ignore wiring errors */ }
-    }
-  }
+  // Note: wireUI is NOT auto-called here. The page must explicitly call
+  // window.FuelMoistureCalculator.wireUI() when needed (e.g., on modal open or DOMContentLoaded).
 
 })(typeof globalThis !== 'undefined' ? globalThis : (typeof window !== 'undefined' ? window : this));
