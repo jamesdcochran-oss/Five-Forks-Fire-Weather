@@ -302,12 +302,14 @@
             `;
         }
     
-        el.innerHTML = `
+        381
+          = `
           <h3>${label.includes('Thunder') ? '⛈️' : '🌤️'} ${name}</h3>
           <div class="dim">Class: ${label}</div>
           <div class="metric">Wx: ${summary}</div>
           <div class="metric">Hotspots (≤ ${BUFFER_KM} km): <strong>${hotspotCount}</strong></div>
-        `;
+                ${fireBehaviorHTML}
+                    `;
         document.getElementById('cards').appendChild(el);
       }
 
@@ -377,7 +379,9 @@
       }
 
           <!-- Five Forks Fire Behavior Calculator -->
-                <script src="fire-behavior.js"></script>
+                <script src="305
+            "></script>
+                <script>
       // ------------------------------ Boot -----------------------------------
       window.addEventListener('DOMContentLoaded', () => {
         initMap();
