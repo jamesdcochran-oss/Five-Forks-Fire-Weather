@@ -303,12 +303,8 @@
             `;
         }
     
-        381
-          = `
-          <h3>${label.includes('Thunder') ? '⛈️' : '🌤️'} ${name}</h3>
+    el.innerHTML = `          <h3>${label.includes('Thunder') ? '⛈️' : '🌤️'} ${name}</h3>
           <div class="dim">Class: ${label}</div>
-          <div class="metric">Wx: ${summary}</div>
-          <div class="metric">Hotspots (≤ ${BUFFER_KM} km): <strong>${hotspotCount}</strong></div>
                 ${fireBehaviorHTML}
                     `;
         document.getElementById('cards').appendChild(el);
