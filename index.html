@@ -8,101 +8,45 @@
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 
-    <!-- Favicon - Fire emoji -->
+    <!-- Favicon -->
     <link rel="icon" href="flameforks.png" type="image/png">
     <link rel="apple-touch-icon" href="flameforks.png">
 
     <style>
-      /* Five Forks Fire Weather — Single-file build
-         - Live data: NOAA (NWS) + NASA FIRMS
-         - Map tiles: OpenStreetMap via Leaflet
-         - Includes Brunswick & Greensville; self-check ensures both render
-      */
-      :root {
-        --bg:#f9fafb;
-        --card:#ffffff;
-        --muted:#6b7280;
-        --shadow:0 2px 6px rgba(0,0,0,.08);
-        --ok:#16a34a;
-        --warn:#d97706;
-        --err:#dc2626;
-        --neutral:#475569;
-        --header-bg:#1d4ed8;
+      :root{
+        --bg:#f9fafb;--card:#ffffff;--muted:#6b7280;--shadow:0 2px 6px rgba(0,0,0,.08);
+        --ok:#16a34a;--warn:#d97706;--err:#dc2626;--neutral:#475569;--header-bg:#1d4ed8;
       }
-
-      /* Dark mode overrides */
-      body.dark {
-        --bg:#020617;
-        --card:#020617;
-        --muted:#9ca3af;
-        --neutral:#e5e7eb;
-        --header-bg:#020617;
-        color:#e5e7eb;
-      }
-      body.dark .badge{
-        background:#111827;
-        color:var(--neutral);
-      }
-
-      *{box-sizing:border-box}
-      html,body{height:100%}
-      body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:#0f172a}
-
-      .app-header{
-        display:flex;
-        align-items:center;
-        justify-content:space-between;
-        padding:.75rem 1rem;
-        background:var(--header-bg);
-        color:#fff;
-      }
+      body.dark{--bg:#020617;--card:#020617;--muted:#9ca3af;--neutral:#e5e7eb;--header-bg:#020617;color:#e5e7eb}
+      *{box-sizing:border-box}html,body{height:100%}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:#0f172a}
+      .app-header{display:flex;align-items:center;justify-content:space-between;padding:.75rem 1rem;background:var(--header-bg);color:#fff}
       .app-header h1{margin:0;font-size:1.25rem}
       .quick-links{display:flex;gap:.5rem;align-items:center}
-      .badge{
-        background:#fff;color:var(--header-bg);padding:.3rem .6rem;border-radius:999px;font-weight:600;border:none;cursor:pointer;
-        box-shadow:var(--shadow);display:inline-flex;align-items:center;gap:.35rem;text-decoration:none;
-      }
-
+      .badge{background:#fff;color:var(--header-bg);padding:.3rem .6rem;border-radius:999px;font-weight:600;border:none;cursor:pointer;box-shadow:var(--shadow);display:inline-flex;align-items:center;gap:.35rem;text-decoration:none}
       main{padding:1rem;display:grid;gap:1rem}
       .cards{display:grid;grid-template-columns:repeat(2,1fr);gap:1rem}
       .card{background:var(--card);padding:1rem;border-radius:10px;box-shadow:var(--shadow)}
-      .card h3{margin:.25rem 0 .35rem}
       .dim{color:var(--muted);margin-bottom:.35rem}
-
       .map-wrap{height:520px;border-radius:10px;overflow:hidden}
       #map{height:100%}
-
-      .app-footer{padding:1rem;background:transparent}
       .statusbar .badge{background:transparent;color:var(--neutral);box-shadow:none;padding:.18rem .45rem}
+      @media (max-width:768px){.app-header{flex-direction:column;gap:.75rem;padding:1rem}.app-header h1{font-size:1.5rem;text-align:center}.quick-links{justify-content:center;width:100%}.quick-links .badge{font-size:.75rem;padding:.2rem .4rem}main{padding:.75rem;gap:.75rem}.cards{grid-template-columns:1fr;gap:.75rem}.card{padding:.75rem}.map-wrap{height:300px;margin-bottom:1rem}.app-footer{padding:.5rem;font-size:.85rem}.statusbar{flex-wrap:wrap;gap:.35rem;justify-content:center}.statusbar .badge{font-size:.7rem;padding:.2rem .4rem}}
+      @media (min-width:960px){main{grid-template-columns:1.2fr 1fr;align-items:start}.map-wrap{grid-row:span 2}}
 
-      /* small screens */
-      @media (max-width:768px){
-        .app-header{flex-direction:column;gap:.75rem;padding:1rem}
-        .app-header h1{font-size:1.5rem;text-align:center}
-        .quick-links{justify-content:center;width:100%}
-        .quick-links .badge{font-size:.75rem;padding:.2rem .4rem}
-        main{padding:.75rem;gap:.75rem}
-        .cards{grid-template-columns:1fr;gap:.75rem}
-        .card{padding:.75rem}
-        .map-wrap{height:300px;margin-bottom:1rem}
-        .app-footer{padding:.5rem;font-size:.85rem}
-        .statusbar{flex-wrap:wrap;gap:.35rem;justify-content:center}
-        .statusbar .badge{font-size:.7rem;padding:.2rem .4rem}
-      }
-      @media (min-width:960px){
-        main{grid-template-columns:1.2fr 1fr;align-items:start}
-        .map-wrap{grid-row:span 2}
-      }
+      /* modal */
+      #fuelCalcModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10010;align-items:center;justify-content:center}
+      #fuelCalcModal[aria-hidden="false"]{display:flex}
+      #fuelCalcModal .modal-content{background:#fff;color:#000;padding:1rem;max-width:900px;width:95%;max-height:90%;overflow:auto;border-radius:8px;position:relative}
+      #fuelCalcModal .modal-close{position:absolute;right:.5rem;top:.5rem;background:transparent;border:none;font-size:1.2rem;cursor:pointer}
+      /* ensure map controls are on top */
+      .leaflet-control{z-index:10020!important}
+      .leaflet-top{z-index:10020!important}
 
-      /* Simple modal styling for the calculator */
-      #fuelCalcModal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center; }
-      #fuelCalcModal .modal-content { background:#fff;color:#000;padding:1rem;max-width:900px;width:95%;max-height:90%;overflow:auto;border-radius:8px;position:relative; }
-      #fuelCalcModal .modal-content h2 { margin-top:0; }
-      #fuelCalcModal .modal-close { position:absolute; right:.5rem; top:.5rem; background:transparent; border:none; font-size:1.2rem; cursor:pointer; }
-      #resultsTable table { width:100%; border-collapse:collapse; }
-      #resultsTable th, #resultsTable td { padding:.25rem .5rem; text-align:left; border-bottom:1px solid #eee }
+      /* focus outlines for accessibility */
+      :focus{outline:3px solid rgba(29,78,216,0.25);outline-offset:2px}
     </style>
   </head>
+
   <body>
     <header class="app-header">
       <h1>🔥 Five Forks Fire Weather</h1>
@@ -112,10 +56,10 @@
         <a href="https://maps.app.goo.gl/vcWebUQrrLSY8gX4A" target="_blank" class="badge" style="text-decoration:none">🗺️ Equip</a>
         <a href="https://www.windy.com/?37.233,-77.400,8" target="_blank" class="badge" style="text-decoration:none">🌪️ Windy</a>
 
-        <!-- Button that opens the embedded calculator modal -->
+        <!-- Open embedded calculator -->
         <button id="openFuelCalc" class="badge" style="text-decoration:none">🧮 Fuel Moisture</button>
 
-        <!-- Keep link to GitHub repo as well (optional) -->
+        <!-- Optional: link to repo -->
         <a href="https://github.com/jamesdcochran-oss/fuel-moisture-calculator" target="_blank" rel="noopener" class="badge" style="text-decoration:none">
           <img src="https://img.shields.io/badge/Fuel%20Moisture-Calculator-blue" alt="Fuel Moisture Calculator" style="height:1.2rem">
         </a>
@@ -126,11 +70,9 @@
 
     <main>
       <section id="cards" class="cards" aria-label="County conditions"></section>
-
       <section class="map-wrap" aria-label="Hotspots map">
         <div id="map"></div>
       </section>
-
       <section id="alerts" class="alerts" aria-live="polite" hidden></section>
     </main>
 
@@ -147,19 +89,12 @@
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
 
-    <!-- Include the calculator script so wireUI and functions are available -->
+    <!-- Calculator script (must exist at repo root) -->
     <script src="fuel-calculator.js"></script>
 
-    <!-- Inline app logic (unchanged core behavior) -->
+    <!-- Inline app logic (map, fetches, rendering) -->
     <script>
-      /**
-       * Single-file app logic
-       * - Verifies connectivity (badges) for NOAA, FIRMS, OSM tiles
-       * - Draws hotspots + 30 km buffers + county centers
-       * - Builds cards per county using NOAA hourly forecast
-       */
-
-      // ----------------------------- Config ---------------------------------
+      /* Config and helpers */
       const COUNTIES = [
         { name: "Amelia",        lat: 37.342, lon: -77.980 },
         { name: "Nottoway",      lat: 37.142, lon: -78.089 },
@@ -168,87 +103,60 @@
         { name: "Brunswick",     lat: 36.758, lon: -77.847 },
         { name: "Greensville",   lat: 36.686, lon: -77.542 },
       ];
+      const BUFFER_KM = 30;
 
-      const BUFFER_KM = 30; // conservative proximity window for nearby hotspots
-
-      // FIRMS endpoint referenced in the original file (appears to be geojson)
       const FIRMS_URL = "https://firms.modaps.eosdis.nasa.gov/api/area/csv/6ec6f9501dda0774853f77ee933238ed/VIIRS_NOAA20_NRT/-78.5,36.0,-77,37.5/1";
 
-      // --------------------------- Status Helpers ----------------------------
       function setBadge(id, state, label){
-        const el = document.getElementById(id);
-        if(!el) return;
-        el.classList.remove('ok','warn','err');
-        if (state) el.classList.add(state);
-        if(label) el.textContent = label;
+        const el = document.getElementById(id); if(!el) return;
+        el.classList.remove('ok','warn','err'); if(state) el.classList.add(state); if(label) el.textContent = label;
       }
       function showAlert(msg){ const box = document.getElementById('alerts'); if(!box) return; box.hidden = false; box.textContent = msg; }
 
-      // ----------------------------- Map Init --------------------------------
-      let map, layers = {};
+      let map, layers = {}, countyBuffers = [];
+
       function initMap(){
-        map = L.map('map');
-        const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '© OpenStreetMap contributors'
-        }).addTo(map);
+        map = L.map('map', { zoomControl: true });
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors' }).addTo(map);
 
         layers = {
           hotspots: L.layerGroup().addTo(map),
           buffers: L.layerGroup().addTo(map),
           centers: L.layerGroup().addTo(map)
         };
-
         map.setView([37.0, -77.5], 8);
-        // legend
+
         const legend = L.control({ position: 'bottomright' });
         legend.onAdd = function() {
-          const div = L.DomUtil.create('div', 'legend');
-          div.style.background = 'white';
-          div.style.padding = '8px';
-          div.style.borderRadius = '8px';
-          div.style.boxShadow = '0 2px 6px rgba(0,0,0,.08)';
-          div.innerHTML = `
-            <div class="row"><span class="swatch" style="background:#ef4444"></span>Hotspot</div>
-            <div class="row"><span class="swatch" style="background:#22c55e"></span>30 km buffer</div>
-            <div class="row"><span class="swatch" style="background:#0ea5e9"></span>County center</div>`;
+          const div = L.DomUtil.create('div', 'legend'); div.style.background = 'white'; div.style.padding = '8px'; div.style.borderRadius = '8px'; div.style.boxShadow = '0 2px 6px rgba(0,0,0,.08)';
+          div.innerHTML = `<div class="row"><span class="swatch" style="background:#ef4444"></span>Hotspot</div><div class="row"><span class="swatch" style="background:#22c55e"></span>30 km buffer</div><div class="row"><span class="swatch" style="background:#0ea5e9"></span>County center</div>`;
           return div;
         };
         legend.addTo(map);
       }
 
-      // --------------------------- Data Fetching -----------------------------
       async function fetchFIRMS(){
         try {
           const res = await fetch(FIRMS_URL, { cache: 'no-store' });
           if(!res.ok) throw new Error(`FIRMS status ${res.status}`);
           const text = await res.text();
 
-          // Try JSON first (geojson endpoint expected)
+          // try JSON (geojson) first
           try {
             const geojson = JSON.parse(text);
             if (geojson && Array.isArray(geojson.features)) {
-              const features = geojson.features.filter(f => f.geometry && f.geometry.type === 'Point');
               setBadge('status-firms','ok','FIRMS ✅');
-              return { type:'FeatureCollection', features };
+              return { type:'FeatureCollection', features: geojson.features.filter(f => f.geometry && f.geometry.type === 'Point') };
             }
-          } catch (e) {
-            // fallback to CSV parsing if not JSON
-          }
+          } catch (e) { /* fall through to CSV */ }
 
-          // attempt CSV parse (very simple)
+          // CSV fallback
           const lines = text.trim().split('\n');
           const features = [];
           for (let i = 1; i < lines.length; i++) {
             const cols = lines[i].split(',');
-            const lat = parseFloat(cols[1]);
-            const lon = parseFloat(cols[2]);
-            if (Number.isFinite(lat) && Number.isFinite(lon)) {
-              features.push({
-                type: 'Feature',
-                geometry: { type: 'Point', coordinates: [lon, lat] },
-                properties: {}
-              });
-            }
+            const lat = parseFloat(cols[1]), lon = parseFloat(cols[2]);
+            if (Number.isFinite(lat) && Number.isFinite(lon)) features.push({ type:'Feature', geometry:{type:'Point', coordinates:[lon, lat]}, properties:{} });
           }
           setBadge('status-firms','ok','FIRMS ✅');
           return { type:'FeatureCollection', features };
@@ -259,11 +167,7 @@
         }
       }
 
-      // NOAA: include User-Agent (per api.weather.gov guidance). Replace contact URL/email as appropriate.
-      const NOAA_HEADERS = {
-        'Accept': 'application/geo+json',
-        'User-Agent': 'Five-Forks-Fire-Weather (https://github.com/jamesdcochran-oss/Five-Forks-Fire-Weather)'
-      };
+      const NOAA_HEADERS = { 'Accept': 'application/geo+json', 'User-Agent': 'Five-Forks-Fire-Weather (https://github.com/jamesdcochran-oss/Five-Forks-Fire-Weather)' };
 
       async function fetchNOAAHourly(lat, lon){
         try {
@@ -279,37 +183,38 @@
           return hourly?.properties?.periods?.[0] ?? null;
         } catch(e) {
           console.warn('NOAA fetch failed', e);
-          setBadge('status-noaa','warn','NOAA ⚠️'); // continue rendering with N/A
+          setBadge('status-noaa','warn','NOAA ⚠️');
           return null;
         }
       }
 
-      // --------------------------- Rendering ---------------------------------
-      function renderCardsStart(){ document.getElementById('cards').innerHTML = ''; }
+      // Safe renderer: avoid innerHTML for untrusted content
+      function renderCountyCard(county, now, hotspotCount){
+        const el = document.createElement('article'); el.className = 'card';
+        const title = document.createElement('h3');
+        const emoji = (now?.shortForecast && String(now.shortForecast).includes('Thunder')) ? '⛈️' : '🌤️';
+        title.textContent = `${emoji} ${county.name}`;
+        el.appendChild(title);
 
-      function renderCountyCard({ name }, now, hotspotCount){
-        const el = document.createElement('article');
-        el.className = 'card';
-        const summary = now ? `${now.temperature}\u00B0F • ${now.relativeHumidity?.value ?? 'N/A'}% RH • ${now.windSpeed ?? 'N/A'} ${now.windDirection ?? ''}` : 'N/A';
-        const label   = now?.shortForecast ?? 'N/A';
-        el.innerHTML = `
-          <h3>${label.includes('Thunder') ? '⛈️' : '🌤️'} ${name}</h3>
-          <div class="dim">Class: ${label}</div>
-          <div class="metric">Wx: ${summary}</div>
-          <div class="metric">Hotspots (≤ ${BUFFER_KM} km): <strong>${hotspotCount}</strong></div>
-        `;
+        const dim = document.createElement('div'); dim.className = 'dim'; dim.textContent = `Class: ${String(now?.shortForecast ?? 'N/A')}`; el.appendChild(dim);
+
+        const metric1 = document.createElement('div'); metric1.className = 'metric';
+        const summary = now ? `${now.temperature ?? 'N/A'}\u00B0F • ${now.relativeHumidity?.value ?? 'N/A'}% RH • ${now.windSpeed ?? 'N/A'} ${now.windDirection ?? ''}` : 'N/A';
+        metric1.textContent = `Wx: ${summary}`; el.appendChild(metric1);
+
+        const metric2 = document.createElement('div'); metric2.className = 'metric';
+        const strong = document.createElement('strong'); strong.textContent = String(Number(hotspotCount) || 0);
+        metric2.appendChild(document.createTextNode(`Hotspots (≤ ${BUFFER_KM} km): `)); metric2.appendChild(strong); el.appendChild(metric2);
+
         document.getElementById('cards').appendChild(el);
       }
 
       function drawBuffersAndCenters(){
-        layers.buffers.clearLayers();
-        layers.centers.clearLayers();
-
-        for(const c of COUNTIES){
-          const circle = turf.circle([c.lon, c.lat], BUFFER_KM, { units: 'kilometers', steps: 64 });
-          const coords = turf.getCoords(circle)[0][0];
-          const center = L.circle([c.lat, c.lon], { color: '#22c55e', radius: BUFFER_KM * 1000, weight: 1, fillOpacity: 0.05 });
-          layers.buffers.addLayer(center);
+        layers.buffers.clearLayers(); layers.centers.clearLayers();
+        for(const cb of countyBuffers){
+          const c = cb.county;
+          const circle = L.circle([c.lat, c.lon], { color: '#22c55e', radius: BUFFER_KM * 1000, weight: 1, fillOpacity: 0.05 });
+          layers.buffers.addLayer(circle);
           const marker = L.circleMarker([c.lat, c.lon], { radius:6, fillColor:'#0ea5e9', color:'#0ea5e9', weight:1, fillOpacity:1 });
           layers.centers.addLayer(marker);
         }
@@ -319,15 +224,16 @@
         layers.hotspots.clearLayers();
         const features = firms?.features ?? [];
         features.forEach(f => {
+          if(!f.geometry || f.geometry.type !== 'Point') return;
           const [lon, lat] = f.geometry.coordinates;
+          if(!Number.isFinite(lon) || !Number.isFinite(lat)) return;
           const marker = L.circleMarker([lat, lon], { radius:4, fillColor:'#ef4444', color:'#ef4444', weight:1, fillOpacity:0.9 });
           layers.hotspots.addLayer(marker);
         });
       }
 
-      // ------------------------------ Logic ----------------------------------
       async function refresh(){
-        renderCardsStart();
+        document.getElementById('cards').innerHTML = '';
         const firms = await fetchFIRMS();
         drawHotspots(firms);
         drawBuffersAndCenters();
@@ -335,81 +241,47 @@
         const features = firms?.features ?? [];
         for(const county of COUNTIES){
           const now = await fetchNOAAHourly(county.lat, county.lon);
-          const buffer = turf.circle([county.lon, county.lat], BUFFER_KM, { units: 'kilometers' });
+          const buffer = countyBuffers.find(cb => cb.county.name === county.name)?.buffer;
           const count = features.reduce((acc, f) => {
             if(!f.geometry || f.geometry.type !== 'Point') return acc;
-            const [x,y] = f.geometry.coordinates; // lon, lat
-            if(!Number.isFinite(x) || !Number.isFinite(y)) return acc;
+            const [x,y] = f.geometry.coordinates; if(!Number.isFinite(x) || !Number.isFinite(y)) return acc;
             const pt = turf.point([x,y]);
-            if (turf.booleanPointInPolygon(pt, buffer)) return acc + 1;
+            if (buffer && turf.booleanPointInPolygon(pt, buffer)) return acc + 1;
             return acc;
           }, 0);
           renderCountyCard(county, now, count);
         }
       }
 
-      // -------------------------- Init & Auto-refresh ------------------------
+      // Init + wiring
       document.addEventListener('DOMContentLoaded', () => {
         initMap();
+
+        // precompute county buffers once
+        countyBuffers = COUNTIES.map(c => ({ county: c, buffer: turf.circle([c.lon, c.lat], BUFFER_KM, { units: 'kilometers', steps: 64 }) }));
+
         refresh().catch(e => console.warn('initial refresh failed', e));
-        // auto-refresh hourly
         setInterval(() => refresh().catch(e => console.warn('refresh failed', e)), 60 * 60 * 1000);
 
-        // theme toggle wiring
+        // theme toggle (defensive)
         const toggle = document.getElementById('themeToggle');
-        if (toggle) {
+        if (toggle && !toggle.dataset.wired) {
           toggle.addEventListener('click', () => {
             document.body.classList.toggle('dark');
             toggle.textContent = document.body.classList.contains('dark') ? '☀️ Light' : '🌙 Dark';
           });
+          toggle.dataset.wired = '1';
         }
       });
     </script>
 
-    <!-- Embedded Fuel Moisture Calculator modal (modal markup already included above in the page) -->
-    <!-- Modal HTML is included in this page at top; wiring below ensures open/close and wireUI runs. -->
-
-    <!-- Modal open/close and wiring script -->
-    <script>
-      // Open modal and ensure the calculator UI wiring runs
-      document.getElementById('openFuelCalc')?.addEventListener('click', () => {
-        const m = document.getElementById('fuelCalcModal');
-        if (!m) return;
-        m.style.display = 'flex';
-        try { if (typeof wireUI === 'function') wireUI(); } catch(e){ console.warn('wireUI error', e); }
-      });
-
-      // Close modal
-      document.getElementById('modalCloseBtn')?.addEventListener('click', () => {
-        const m = document.getElementById('fuelCalcModal');
-        if (m) m.style.display = 'none';
-      });
-
-      // Close modal by clicking outside content
-      document.getElementById('fuelCalcModal')?.addEventListener('click', (e) => {
-        if (e.target && e.target.id === 'fuelCalcModal') {
-          e.target.style.display = 'none';
-        }
-      });
-
-      // Safety: if fuel-calculator.js didn't auto-wire (older versions), attempt to call wireUI on DOMContentLoaded
-      if (typeof document !== 'undefined') {
-        if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', () => {
-            try { if (typeof wireUI === 'function') wireUI(); } catch (e) { /* ignore */ }
-          });
-        } else {
-          try { if (typeof wireUI === 'function') wireUI(); } catch (e) { /* ignore */ }
-        }
-      }
-    </script>
-
-    <!-- Fuel Moisture Calculator modal DOM (placed near end so it's available for the wiring script above) -->
-    <div id="fuelCalcModal" aria-hidden="true">
+    <!-- Accessible modal DOM: includes inputs expected by fuel-calculator.js -->
+    <div id="fuelCalcModal" role="dialog" aria-modal="true" aria-labelledby="fuelCalcTitle" aria-hidden="true">
       <div class="modal-content">
         <button id="modalCloseBtn" class="modal-close" aria-label="Close modal">✖</button>
         <div id="fuelCalcUI" style="padding-top:1.5rem;">
-          <h2>Fuel Moisture Calculator</h2>
+          <!-- make title programmatically focusable -->
+          <h2 id="fuelCalcTitle" tabindex="-1">Fuel Moisture Calculator</h2>
 
           <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:0.75rem;">
             <label>Initial 1‑hr: <input id="initial1hr" type="number" value="8" style="width:4rem"></label>
@@ -430,5 +302,71 @@
       </div>
     </div>
 
+    <!-- Modal wiring (attach after DOM elements exist). Includes focus trap. -->
+    <script>
+      (function(){
+        function getFocusable(container){
+          if(!container) return [];
+          const selectors = 'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
+          return Array.from(container.querySelectorAll(selectors)).filter(el => el.offsetWidth > 0 || el.offsetHeight > 0 || el === document.activeElement);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+          const openBtn = document.getElementById('openFuelCalc');
+          const modal = document.getElementById('fuelCalcModal');
+          const modalClose = document.getElementById('modalCloseBtn');
+          let lastFocused = null;
+          let keydownHandler = null;
+
+          function openModal(){
+            if(!modal) return;
+            lastFocused = document.activeElement;
+            modal.setAttribute('aria-hidden', 'false');
+            modal.style.display = 'flex';
+
+            // wire the calculator UI via namespace (namespaced API is deliberate)
+            try { if (window.FuelMoistureCalculator?.wireUI) window.FuelMoistureCalculator.wireUI(); } catch (e) { console.warn('wireUI error', e); }
+
+            // focus first meaningful element (title)
+            const title = document.getElementById('fuelCalcTitle');
+            if (title && typeof title.focus === 'function') title.focus();
+
+            // trap focus
+            const focusables = getFocusable(modal);
+            if (focusables.length) {
+              const first = focusables[0];
+              const last = focusables[focusables.length - 1];
+              keydownHandler = function(e){
+                if (e.key === 'Tab') {
+                  if (e.shiftKey && document.activeElement === first) {
+                    e.preventDefault(); last.focus();
+                  } else if (!e.shiftKey && document.activeElement === last) {
+                    e.preventDefault(); first.focus();
+                  }
+                } else if (e.key === 'Escape') {
+                  closeModal();
+                }
+              };
+              document.addEventListener('keydown', keydownHandler);
+            }
+          }
+
+          function closeModal(){
+            if(!modal) return;
+            modal.setAttribute('aria-hidden','true');
+            modal.style.display = 'none';
+            if (keydownHandler) {
+              document.removeEventListener('keydown', keydownHandler);
+              keydownHandler = null;
+            }
+            if (lastFocused && typeof lastFocused.focus === 'function') lastFocused.focus();
+          }
+
+          if (openBtn) openBtn.addEventListener('click', openModal);
+          if (modalClose) modalClose.addEventListener('click', closeModal);
+          if (modal) modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+        });
+      })();
+    </script>
   </body>
 </html>
