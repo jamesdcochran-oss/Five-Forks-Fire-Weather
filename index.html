@@ -1,172 +1,236 @@
-diff --git a/index.html b/index.html
-index 0000000..1111111 100644
---- a/index.html
-+++ b/index.html
-@@ -1,6 +1,18 @@
- <!-- existing markup -->
- 
-+<!-- Hotspot source status -->
-+<div id="hotspot-status" data-level="info" style="margin:8px 0;font:14px/1.3 sans-serif;">
-+  Hotspots: loading...
-+</div>
-+
- <!-- existing map/container markup -->
- 
- <script>
-+  /*
-+   * NWS-first hotspot loader with CSV fallbacks.
-+   * Goal: avoid direct FIRMS dependency in app code.
-+   */
-+
-+  // ====== CONFIG ======
-+  const HOTSPOT_REFRESH_MS = 2 * 60 * 1000;
-+  const NWS_HOTSPOT_GEOJSON_URL = "https://www.weather.gov/source/dlh/fire-hotspots.geojson"; // replace if needed
-+  const LOCAL_CSV_URL = "hotspots.csv"; // optional local snapshot in repo root
-+  const INLINE_CSV = `latitude,longitude,bright_ti4,scan,track,acq_date,acq_time,satellite,instrument,confidence,version,bright_ti5,frp,daynight
-+37.18095,-77.4473,317.15,0.39,0.36,2026-07-20,709,N20,VIIRS,n,2.0NRT,292.83,1.6,N
-+37.32526,-77.80234,310.35,0.39,0.36,2026-07-20,709,N20,VIIRS,n,2.0NRT,290.72,0.77,N
-+37.47763,-78.43346,302.49,0.38,0.36,2026-07-20,709,N20,VIIRS,n,2.0NRT,291.34,0.64,N`;
-+
-+  // ====== STATUS ======
-+  function setHotspotStatus(message, level) {
-+    var el = document.getElementById("hotspot-status");
-+    if (!el) return;
-+    el.textContent = "Hotspots: " + message;
-+    el.setAttribute("data-level", level || "info");
-+  }
-+
-+  // ====== CSV HELPERS ======
-+  function parseCsv(csvText) {
-+    var lines = csvText.trim().split(/\r?\n/);
-+    var headers = lines[0].split(",").map(function (h) { return h.trim(); });
-+    return lines.slice(1).map(function (line) {
-+      var cols = line.split(",").map(function (c) { return c.trim(); });
-+      var row = {};
-+      headers.forEach(function (h, i) { row[h] = cols[i] || ""; });
-+      return row;
-+    });
-+  }
-+
-+  function csvRowsToFeatureCollection(rows) {
-+    var features = rows
-+      .filter(function (r) { return r.latitude && r.longitude; })
-+      .map(function (r) {
-+        return {
-+          type: "Feature",
-+          geometry: {
-+            type: "Point",
-+            coordinates: [Number(r.longitude), Number(r.latitude)]
-+          },
-+          properties: {
-+            bright_ti4: Number(r.bright_ti4),
-+            bright_ti5: Number(r.bright_ti5),
-+            frp: Number(r.frp),
-+            scan: Number(r.scan),
-+            track: Number(r.track),
-+            acq_date: r.acq_date,
-+            acq_time: r.acq_time,
-+            satellite: r.satellite,
-+            instrument: r.instrument,
-+            confidence: r.confidence,
-+            version: r.version,
-+            daynight: r.daynight
-+          }
-+        };
-+      });
-+    return { type: "FeatureCollection", features: features };
-+  }
-+
-+  // ====== SOURCE LOADERS ======
-+  async function loadHotspotsFromNws() {
-+    var res = await fetch(NWS_HOTSPOT_GEOJSON_URL, { cache: "no-store" });
-+    if (!res.ok) throw new Error("NWS hotspot fetch failed: " + res.status);
-+    var data = await res.json();
-+    if (!data || !data.features || !data.features.length) throw new Error("NWS hotspot data empty");
-+    return { source: "nws", data: data };
-+  }
-+
-+  async function loadHotspotsFromLocalCsv() {
-+    var res = await fetch(LOCAL_CSV_URL, { cache: "no-store" });
-+    if (!res.ok) throw new Error("local CSV fetch failed: " + res.status);
-+    var text = await res.text();
-+    var rows = parseCsv(text);
-+    if (!rows.length) throw new Error("local CSV empty");
-+    return { source: "local-csv", data: csvRowsToFeatureCollection(rows) };
-+  }
-+
-+  function loadHotspotsFromInlineCsv() {
-+    var rows = parseCsv(INLINE_CSV);
-+    return { source: "inline-csv", data: csvRowsToFeatureCollection(rows) };
-+  }
-+
-+  async function loadHotspotsWithFallback() {
-+    // 1) NWS source
-+    try {
-+      return await loadHotspotsFromNws();
-+    } catch (errNws) {
-+      console.warn(errNws.message);
-+    }
-+    // 2) local CSV
-+    try {
-+      return await loadHotspotsFromLocalCsv();
-+    } catch (errCsv) {
-+      console.warn(errCsv.message);
-+    }
-+    // 3) inline CSV
-+    return loadHotspotsFromInlineCsv();
-+  }
-+
-+  // ====== MAP INTEGRATION ======
-+  // IMPORTANT: adapt this function to your existing map layer logic if needed.
-+  // It will work out-of-the-box for OpenLayers if `map` is global.
-+  var hotspotLayer;
-+  function renderHotspots(featureCollection) {
-+    if (typeof ol === "undefined" || typeof map === "undefined") {
-+      // fallback: keep app safe if map/ol not ready
-+      console.log("Hotspots loaded:", featureCollection.features.length);
-+      return;
-+    }
-+
-+    var source = new ol.source.Vector({
-+      features: new ol.format.GeoJSON().readFeatures(featureCollection, {
-+        featureProjection: "EPSG:3857"
-+      })
-+    });
-+
-+    if (!hotspotLayer) {
-+      hotspotLayer = new ol.layer.Vector({
-+        title: "Hotspots (NWS/CSV)",
-+        source: source,
-+        style: new ol.style.Style({
-+          image: new ol.style.Circle({
-+            radius: 5,
-+            fill: new ol.style.Fill({ color: "rgba(255,80,0,0.9)" }),
-+            stroke: new ol.style.Stroke({ color: "#000", width: 1 })
-+          })
-+        })
-+      });
-+      map.addLayer(hotspotLayer);
-+    } else {
-+      hotspotLayer.setSource(source);
-+    }
-+  }
-+
-+  async function refreshHotspots() {
-+    try {
-+      var result = await loadHotspotsWithFallback();
-+      renderHotspots(result.data);
-+      if (result.source === "nws") setHotspotStatus("NWS source", "ok");
-+      else if (result.source === "local-csv") setHotspotStatus("local CSV fallback", "warn");
-+      else setHotspotStatus("inline CSV emergency fallback", "warn");
-+    } catch (e) {
-+      console.error(e);
-+      setHotspotStatus("failed to load", "error");
-+    }
-+  }
-+
-+  // initial + periodic refresh
-+  refreshHotspots();
-+  setInterval(refreshHotspots, HOTSPOT_REFRESH_MS);
-+
-   // ... keep existing script content ...
- </script>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Five Forks Fire Weather</title>
+  <style>
+    :root {
+      --ok: #0a7a22;
+      --warn: #9a6700;
+      --err: #b00020;
+      --muted: #666;
+      --border: #ddd;
+      --bg: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, sans-serif; }
+    #topbar {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      background: #fff;
+    }
+    #hotspot-status[data-level="ok"] { color: var(--ok); font-weight: 700; }
+    #hotspot-status[data-level="warn"] { color: var(--warn); font-weight: 700; }
+    #hotspot-status[data-level="error"] { color: var(--err); font-weight: 700; }
+    .note { font-size: 13px; color: var(--muted); }
+    .meta { font-size: 12px; color: #444; }
+    button {
+      border: 1px solid #aaa;
+      background: #fff;
+      padding: 6px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    button:hover { background: #f0f0f0; }
+    #map {
+      height: calc(100vh - 56px);
+      width: 100%;
+      background: var(--bg);
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      text-align: center;
+      padding: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div id="topbar">
+    <div id="hotspot-status" data-level="info">Hotspots: loading...</div>
+    <div class="note">Source priority: NWS → local CSV → inline CSV (no direct FIRMS)</div>
+    <button id="refresh-btn" type="button">Refresh now</button>
+    <div id="last-updated" class="meta">Last updated: --</div>
+  </div>
+
+  <div id="map">
+    <div id="map-text">Map placeholder (hook into your existing renderer)</div>
+  </div>
+
+  <script>
+    // =========================
+    // Hotspot loader (NWS-first, no direct FIRMS)
+    // =========================
+
+    const HOTSPOT_REFRESH_MS = 120000; // 2 minutes
+    const NWS_HOTSPOT_GEOJSON_URL = "https://www.weather.gov/source/dlh/fire-hotspots.geojson";
+    const LOCAL_CSV_URL = "./hotspots.csv";
+
+    const INLINE_CSV = `latitude,longitude,bright_ti4,scan,track,acq_date,acq_time,satellite,instrument,confidence,version,bright_ti5,frp,daynight
+37.18095,-77.4473,317.15,0.39,0.36,2026-07-20,709,N20,VIIRS,n,2.0NRT,292.83,1.6,N
+37.32526,-77.80234,310.35,0.39,0.36,2026-07-20,709,N20,VIIRS,n,2.0NRT,290.72,0.77,N
+37.47763,-78.43346,302.49,0.38,0.36,2026-07-20,709,N20,VIIRS,n,2.0NRT,291.34,0.64,N`;
+
+    function setHotspotStatus(message, level = "info") {
+      const el = document.getElementById("hotspot-status");
+      if (!el) return;
+      el.textContent = `Hotspots: ${message}`;
+      el.setAttribute("data-level", level);
+    }
+
+    function setLastUpdated(date = new Date()) {
+      const el = document.getElementById("last-updated");
+      if (!el) return;
+      el.textContent = `Last updated: ${date.toLocaleString()}`;
+    }
+
+    // CSV parser with quoted field handling
+    function parseCsvLine(line) {
+      const out = [];
+      let cur = "";
+      let inQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '"') {
+          if (inQuotes && line[i + 1] === '"') {
+            cur += '"'; i++;
+          } else {
+            inQuotes = !inQuotes;
+          }
+        } else if (ch === "," && !inQuotes) {
+          out.push(cur);
+          cur = "";
+        } else {
+          cur += ch;
+        }
+      }
+      out.push(cur);
+      return out.map(s => s.trim());
+    }
+
+    function parseCsv(csvText) {
+      const lines = csvText.trim().split(/\r?\n/).filter(Boolean);
+      if (lines.length < 2) return [];
+      const headers = parseCsvLine(lines[0]);
+      return lines.slice(1).map(line => {
+        const cols = parseCsvLine(line);
+        const row = {};
+        headers.forEach((h, i) => row[h] = cols[i] ?? "");
+        return row;
+      });
+    }
+
+    function num(v, fallback = 0) {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : fallback;
+    }
+
+    function csvRowsToGeoJson(rows) {
+      const features = rows
+        .filter(r => r.latitude && r.longitude)
+        .map(r => ({
+          type: "Feature",
+          geometry: {
+            type: "Point",
+            coordinates: [num(r.longitude), num(r.latitude)]
+          },
+          properties: {
+            bright_ti4: num(r.bright_ti4),
+            bright_ti5: num(r.bright_ti5),
+            frp: num(r.frp),
+            scan: num(r.scan),
+            track: num(r.track),
+            acq_date: r.acq_date || "",
+            acq_time: r.acq_time || "",
+            satellite: r.satellite || "",
+            instrument: r.instrument || "",
+            confidence: r.confidence || "",
+            version: r.version || "",
+            daynight: r.daynight || ""
+          }
+        }));
+
+      return { type: "FeatureCollection", features };
+    }
+
+    async function loadFromNws() {
+      const res = await fetch(NWS_HOTSPOT_GEOJSON_URL, { cache: "no-store" });
+      if (!res.ok) throw new Error(`NWS fetch failed (${res.status})`);
+      const data = await res.json();
+      if (!data || !Array.isArray(data.features) || data.features.length === 0) {
+        throw new Error("NWS returned zero features");
+      }
+      return { source: "nws", data };
+    }
+
+    async function loadFromLocalCsv() {
+      const res = await fetch(LOCAL_CSV_URL, { cache: "no-store" });
+      if (!res.ok) throw new Error(`Local CSV fetch failed (${res.status})`);
+      const txt = await res.text();
+      const rows = parseCsv(txt);
+      if (!rows.length) throw new Error("Local CSV empty");
+      return { source: "local-csv", data: csvRowsToGeoJson(rows) };
+    }
+
+    function loadFromInlineCsv() {
+      const rows = parseCsv(INLINE_CSV);
+      return { source: "inline-csv", data: csvRowsToGeoJson(rows) };
+    }
+
+    async function loadHotspots() {
+      try { return await loadFromNws(); } catch (e) { console.warn("[NWS]", e.message); }
+      try { return await loadFromLocalCsv(); } catch (e) { console.warn("[CSV]", e.message); }
+      return loadFromInlineCsv();
+    }
+
+    // ---- Renderer hook ----
+    // Replace this function body with your Leaflet/OpenLayers draw logic.
+    function renderHotspots(featureCollection, source) {
+      const target = document.getElementById("map-text");
+      const count = featureCollection?.features?.length || 0;
+      if (target) {
+        target.textContent = `Loaded ${count} hotspots from ${source}`;
+      }
+      // Debug:
+      console.log("Hotspots loaded:", source, featureCollection);
+    }
+
+    let refreshInFlight = false;
+
+    async function refreshHotspots() {
+      if (refreshInFlight) return;
+      refreshInFlight = true;
+      setHotspotStatus("Refreshing…", "info");
+
+      try {
+        const { source, data } = await loadHotspots();
+        renderHotspots(data, source);
+
+        if (source === "nws") setHotspotStatus("NWS source active", "ok");
+        else if (source === "local-csv") setHotspotStatus("Local CSV fallback active", "warn");
+        else setHotspotStatus("Inline CSV fallback active", "warn");
+
+        setLastUpdated(new Date());
+      } catch (err) {
+        console.error(err);
+        setHotspotStatus("Failed to load hotspots", "error");
+      } finally {
+        refreshInFlight = false;
+      }
+    }
+
+    // Init + periodic refresh
+    refreshHotspots();
+    setInterval(refreshHotspots, HOTSPOT_REFRESH_MS);
+
+    // Manual refresh
+    const btn = document.getElementById("refresh-btn");
+    if (btn) btn.addEventListener("click", refreshHotspots);
+  </script>
+</body>
+</html>
