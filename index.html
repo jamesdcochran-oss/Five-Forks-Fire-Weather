@@ -151,7 +151,13 @@
       const BUFFER_KM = 30; // conservative proximity window for nearby hotspots
 
       // FIRMS endpoint referenced in the original file (appears to be geojson)
-  const FIRMS_URL = "https://firms.modaps.eosdis.nasa.gov/api/area/geojson/6ec6f9501dda0774853f77ee933238ed/VIIRS_NOAA20_NRT/-79,36,-77,38/2"
+      const FIRMS_URL = "https://firms.modaps.eosdis.nasa.gov/api/area/geojson/6ec6f9501dda0774853f77ee933238ed/VIIRS_NOAA20_NRT/-79,36,-77,38/2";
+      // Inline fallback keeps the map usable if FIRMS is empty or unavailable.
+      const FIRMS_FALLBACK_CSV = `latitude,longitude,bright_ti4,scan,track,acq_date,acq_time,satellite,instrument,confidence,version,bright_ti5,frp,daynight
+37.18095,-77.4473,317.15,0.39,0.36,2026-07-20,709,N20,VIIRS,n,2.0NRT,292.83,1.6,N
+37.32526,-77.80234,310.35,0.39,0.36,2026-07-20,709,N20,VIIRS,n,2.0NRT,290.72,0.77,N
+37.47763,-78.43346,302.49,0.38,0.36,2026-07-20,709,N20,VIIRS,n,2.0NRT,291.34,0.64,N`;
+      const FIRMS_NUMERIC_FIELDS = new Set(['latitude', 'longitude', 'bright_ti4', 'scan', 'track', 'acq_time', 'bright_ti5', 'frp']);
   
     // --------------------------- Status Helpers ----------------------------
       function setBadge(id, state, label){
@@ -193,7 +199,46 @@
       }
 
       // --------------------------- Data Fetching -----------------------------
-      // FIRMS: attempt to parse JSON (geojson); if that fails, fall back to CSV parsing
+      function parseHotspotCSV(csvText){
+        const lines = csvText.split('\n').map(l => l.trim()).filter(l => l);
+        if (lines.length <= 1) return { type: 'FeatureCollection', features: [] };
+
+        const headers = lines[0].split(',').map(h => h.trim());
+        const features = lines.slice(1).map(line => {
+          const values = line.split(',');
+          const properties = {};
+          headers.forEach((header, i) => {
+            const value = (values[i] ?? '').trim();
+            properties[header] = FIRMS_NUMERIC_FIELDS.has(header) && value !== '' ? Number(value) : value;
+          });
+          return {
+            type: 'Feature',
+            geometry: {
+              type: 'Point',
+              coordinates: [properties.longitude, properties.latitude]
+            },
+            properties
+          };
+        }).filter(f => Number.isFinite(f.geometry.coordinates[0]) && Number.isFinite(f.geometry.coordinates[1]));
+
+        return { type: 'FeatureCollection', features };
+      }
+
+      function hasUsableHotspots(geojson){
+        return !!geojson?.features?.some(f =>
+          f?.geometry?.type === 'Point' &&
+          Number.isFinite(f.geometry.coordinates?.[0]) &&
+          Number.isFinite(f.geometry.coordinates?.[1])
+        );
+      }
+
+      function getFallbackFIRMS(reason){
+        console.warn('Using fallback CSV data for FIRMS:', reason);
+        setBadge('status-firms', 'warn', 'FIRMS fallback CSV ⚠️');
+        return parseHotspotCSV(FIRMS_FALLBACK_CSV);
+      }
+
+      // FIRMS: keep live fetch first, then fall back to inline CSV if empty/unavailable.
       async function fetchFIRMS(){
         try {
           const res = await fetch(FIRMS_URL, { cache: 'no-store' });
@@ -203,43 +248,25 @@
           // Try JSON first (geojson endpoint expected)
           try {
             const geojson = JSON.parse(text);
-            if (geojson && Array.isArray(geojson.features)) {
+            if (geojson && Array.isArray(geojson.features) && hasUsableHotspots(geojson)) {
               setBadge('status-firms','ok','FIRMS ✅');
               return geojson;
             }
-            // If parsed value isn't valid, fall through to CSV fallback
+            // Valid but empty FIRMS data should fall back to inline CSV data.
           } catch (e) {
             // not JSON — continue to CSV parsing below
           }
 
           // CSV fallback parsing (handles some FIRMS endpoints that return CSV)
-          const lines = text.split('\n').map(l => l.trim()).filter(l => l);
-          if (lines.length <= 1) {
+          const csvGeojson = parseHotspotCSV(text);
+          if (hasUsableHotspots(csvGeojson)) {
             setBadge('status-firms','ok','FIRMS ✅');
-            return { type: 'FeatureCollection', features: [] };
+            return csvGeojson;
           }
-          const headers = lines[0].split(',').map(h => h.trim());
-          const data = lines.slice(1).map(line => {
-            const values = line.split(',');
-            const obj = {};
-            headers.forEach((header, i) => obj[header] = values[i]);
-            return obj;
-          });
-          const features = data.map(row => ({
-            type: 'Feature',
-            geometry: {
-              type: 'Point',
-              coordinates: [parseFloat(row.longitude), parseFloat(row.latitude)]
-            },
-            properties: row
-          })).filter(f => Number.isFinite(f.geometry.coordinates[0]) && Number.isFinite(f.geometry.coordinates[1]));
-
-          setBadge('status-firms','ok','FIRMS ✅');
-          return { type: 'FeatureCollection', features };
+          return getFallbackFIRMS('no usable hotspots returned');
         } catch (e) {
           console.warn('FIRMS fetch failed', e);
-          setBadge('status-firms','err','FIRMS ❌');
-          return { type:'FeatureCollection', features: [] };
+          return getFallbackFIRMS(e.message || 'fetch failed');
         }
       }
 
