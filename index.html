@@ -5,15 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Five Forks Fire Weather — Single File</title>
 
-    <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-
     <style>
-      /* Five Forks Fire Weather — Single-file build
-         - Live data: NOAA (NWS) + NASA FIRMS
-         - Map tiles: OpenStreetMap via Leaflet
-         - Includes Brunswick & Greensville; self-check ensures both render
-      */
       :root {
         --bg:#f9fafb;
         --card:#ffffff;
@@ -23,28 +15,32 @@
         --warn:#d97706;
         --err:#dc2626;
         --neutral:#475569;
-        --header-bg:#1d4ed8;
       }
 
-      /* Dark mode overrides */
       body.dark {
         --bg:#020617;
-        --card:#020617;
+        --card:#0f172a;
         --muted:#9ca3af;
         --neutral:#e5e7eb;
-        --header-bg:#020617;
         color:#e5e7eb;
       }
-      body.dark .badge{
+
+      body.dark .badge {
         background:#111827;
         color:var(--neutral);
       }
 
-      *{box-sizing:border-box}
-      html,body{height:100%}
-      body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:#0f172a}
+      * { box-sizing:border-box }
+      html, body { height:100% }
 
-      .app-header{
+      body {
+        margin:0;
+        font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+        background:var(--bg);
+        color:#0f172a;
+      }
+
+      .app-header {
         display:flex;
         align-items:center;
         justify-content:space-between;
@@ -53,47 +49,186 @@
         color:#fff;
       }
 
-      .app-header h1{margin:0;font-size:1.15rem}
-      .statusbar{display:flex;gap:.5rem;align-items:center}
-      .quick-links{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
-      .badge{padding:.25rem .5rem;border-radius:999px;font-size:.8rem;box-shadow:var(--shadow);background:#e5e7eb;color:var(--neutral)}
-      .badge.ok{color:#fff;background:var(--ok)}
-      .badge.warn{color:#fff;background:var(--warn)}
-      .badge.err{color:#fff;background:var(--err)}
-
-      main{display:grid;gap:1rem;padding:1rem}
-      .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1rem}
-      .card{background:var(--card);border-radius:12px;padding:.9rem;box-shadow:var(--shadow)}
-      .card h3{margin:0 0 .25rem;display:flex;align-items:center;gap:.4rem;font-size:1.05rem}
-      .dim{color:var(--muted);font-size:.9rem}
-      .metric{margin:.25rem 0}
-
-      .map-wrap{height:480px;border-radius:12px;overflow:hidden;box-shadow:var(--shadow)}
-      #map{height:100%;width:100%}
-      .legend{background:#fff;padding:6px 8px;border-radius:8px;box-shadow:var(--shadow)}
-      .legend .row{display:flex;align-items:center;gap:6px;margin:4px 0}
-      .legend .swatch{width:12px;height:12px;border-radius:50%;display:inline-block}
-
-      .alerts{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;padding:.75rem;border-radius:8px;box-shadow:var(--shadow)}
-      .app-footer{text-align:center;color:var(--muted);padding:.75rem}
-
-      /* Mobile optimizations */
-      @media (max-width:768px){
-        .app-header{flex-direction:column;gap:.75rem;padding:1rem}
-        .app-header h1{font-size:1.5rem;text-align:center}
-        .quick-links{justify-content:center;width:100%}
-        .quick-links .badge{font-size:.75rem;padding:.2rem .4rem}
-        main{padding:.75rem;gap:.75rem}
-        .cards{grid-template-columns:1fr;gap:.75rem}
-        .card{padding:.75rem}
-        .map-wrap{height:300px;margin-bottom:1rem}
-        .app-footer{padding:.5rem;font-size:.85rem}
-        .statusbar{flex-wrap:wrap;gap:.35rem;justify-content:center}
-        .statusbar .badge{font-size:.7rem;padding:.2rem .4rem}
+      .app-header h1 {
+        margin:0;
+        font-size:1.15rem;
       }
-      @media (min-width:960px){
-        main{grid-template-columns:1.2fr 1fr;align-items:start}
-        .map-wrap{grid-row:span 2}
+
+      .statusbar {
+        display:flex;
+        gap:.5rem;
+        align-items:center;
+      }
+
+      .quick-links {
+        display:flex;
+        gap:.5rem;
+        align-items:center;
+        flex-wrap:wrap;
+      }
+
+      .badge {
+        padding:.25rem .5rem;
+        border-radius:999px;
+        font-size:.8rem;
+        box-shadow:var(--shadow);
+        background:#e5e7eb;
+        color:var(--neutral);
+      }
+
+      .badge.ok { color:#fff; background:var(--ok); }
+      .badge.warn { color:#fff; background:var(--warn); }
+      .badge.err { color:#fff; background:var(--err); }
+
+      main {
+        display:grid;
+        gap:1rem;
+        padding:1rem;
+      }
+
+      .cards {
+        display:grid;
+        grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+        gap:1rem;
+      }
+
+      .card {
+        background:var(--card);
+        border-radius:12px;
+        padding:.9rem;
+        box-shadow:var(--shadow);
+      }
+
+      .card h3 {
+        margin:0 0 .25rem;
+        display:flex;
+        align-items:center;
+        gap:.4rem;
+        font-size:1.05rem;
+      }
+
+      .dim {
+        color:var(--muted);
+        font-size:.9rem;
+      }
+
+      .metric {
+        margin:.25rem 0;
+      }
+
+      .map-wrap {
+        min-height:320px;
+        border-radius:12px;
+        overflow:hidden;
+        box-shadow:var(--shadow);
+      }
+
+      .panel-grid {
+        display:grid;
+        grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+        gap:.75rem;
+        margin-top:1rem;
+      }
+
+      .panel-link {
+        display:block;
+        text-decoration:none;
+        text-align:center;
+        padding:.75rem;
+        border-radius:10px;
+        background:#e5e7eb;
+        color:#0f172a;
+        box-shadow:var(--shadow);
+        font-size:.95rem;
+      }
+
+      body.dark .panel-link {
+        background:#111827;
+        color:#e5e7eb;
+      }
+
+      .alerts {
+        background:#fff7ed;
+        border:1px solid #fed7aa;
+        color:#9a3412;
+        padding:.75rem;
+        border-radius:8px;
+        box-shadow:var(--shadow);
+      }
+
+      .app-footer {
+        text-align:center;
+        color:var(--muted);
+        padding:.75rem;
+      }
+
+      @media (max-width:768px) {
+        .app-header {
+          flex-direction:column;
+          gap:.75rem;
+          padding:1rem;
+        }
+
+        .app-header h1 {
+          font-size:1.5rem;
+          text-align:center;
+        }
+
+        .quick-links {
+          justify-content:center;
+          width:100%;
+        }
+
+        .quick-links .badge {
+          font-size:.75rem;
+          padding:.2rem .4rem;
+        }
+
+        main {
+          padding:.75rem;
+          gap:.75rem;
+        }
+
+        .cards {
+          grid-template-columns:1fr;
+          gap:.75rem;
+        }
+
+        .card {
+          padding:.75rem;
+        }
+
+        .map-wrap {
+          min-height:auto;
+          margin-bottom:1rem;
+        }
+
+        .app-footer {
+          padding:.5rem;
+          font-size:.85rem;
+        }
+
+        .statusbar {
+          flex-wrap:wrap;
+          gap:.35rem;
+          justify-content:center;
+        }
+
+        .statusbar .badge {
+          font-size:.7rem;
+          padding:.2rem .4rem;
+        }
+      }
+
+      @media (min-width:960px) {
+        main {
+          grid-template-columns:1.2fr 1fr;
+          align-items:start;
+        }
+
+        .map-wrap {
+          grid-row:span 2;
+        }
       }
     </style>
   </head>
@@ -101,44 +236,48 @@
     <header class="app-header">
       <h1>🔥 Five Forks Fire Weather</h1>
       <div class="quick-links">
-        <a href="https://firms.modaps.eosdis.nasa.gov/map/" target="_blank" class="badge" style="text-decoration:none">🛰️ FIRMS</a>
-        <a href="https://www.weather.gov/akq/" target="_blank" class="badge" style="text-decoration:none">🌧️ NWS</a>
-        <a href="https://maps.app.goo.gl/vcWebUQrrLSY8gX4A" target="_blank" class="badge" style="text-decoration:none">🗺️ Equip</a>
-        <a href="https://www.windy.com/?37.233,-77.400,8" target="_blank" class="badge" style="text-decoration:none">🌪️ Windy</a>
+        <a href="https://www.weather.gov/akq/weatherstory" target="_blank" rel="noopener noreferrer" class="badge" style="text-decoration:none">📋 AKQ Story</a>
+        <a href="https://www.weather.gov/media/akq/DssPacket.pdf" target="_blank" rel="noopener noreferrer" class="badge" style="text-decoration:none">🗞️ Briefing</a>
+        <a href="http://www.weather.gov/akq/FIREMAIN" target="_blank" rel="noopener noreferrer" class="badge" style="text-decoration:none">🔥 Fire Wx</a>
+        <a href="https://radar.weather.gov/station/KAKQ/standard" target="_blank" rel="noopener noreferrer" class="badge" style="text-decoration:none">📡 Radar</a>
         <button id="themeToggle" class="badge">🌙 Dark</button>
       </div>
     </header>
 
     <main>
       <section id="cards" class="cards" aria-label="County conditions"></section>
-      <section class="map-wrap" aria-label="Hotspots map">
-        <div id="map"></div>
+
+      <section class="map-wrap" aria-label="Regional weather links">
+        <div class="card" style="height:100%; margin:0;">
+          <h3>Regional Weather</h3>
+          <div class="dim">Static links instead of live map layers</div>
+
+          <div class="panel-grid">
+            <a class="panel-link" href="https://www.weather.gov/akq/weatherstory" target="_blank" rel="noopener noreferrer">📋 AKQ Story</a>
+            <a class="panel-link" href="https://radar.weather.gov/station/KAKQ/standard" target="_blank" rel="noopener noreferrer">📡 Radar</a>
+            <a class="panel-link" href="https://www.weather.gov/wrh/hazards?obs=true&wfo=akq&hazard=true&hazard_type=all&hazard_opacity=80&tab=legend" target="_blank" rel="noopener noreferrer">⚠️ Hazards</a>
+            <a class="panel-link" href="https://www.star.nesdis.noaa.gov/GOES/wfo.php?wfo=akq" target="_blank" rel="noopener noreferrer">🛰️ Satellite</a>
+            <a class="panel-link" href="https://water.noaa.gov/wfo/akq" target="_blank" rel="noopener noreferrer">🌊 Rivers</a>
+            <a class="panel-link" href="https://www.wpc.ncep.noaa.gov/NationalForecastChart/map.php" target="_blank" rel="noopener noreferrer">🗺️ Forecast Maps</a>
+            <a class="panel-link" href="https://forecast.weather.gov/gridpoint.php?site=akq&TypeDefault=graphical" target="_blank" rel="noopener noreferrer">🕒 Hourly Graph</a>
+            <a class="panel-link" href="http://www.weather.gov/akq/Brief" target="_blank" rel="noopener noreferrer">📎 Briefings</a>
+          </div>
+        </div>
       </section>
+
       <section id="alerts" class="alerts" aria-live="polite" hidden></section>
     </main>
 
     <footer class="app-footer">
       <div class="statusbar" style="text-align:center;margin-bottom:0.5rem" aria-live="polite">
         <span id="status-noaa" class="badge" title="NOAA Weather API">NOAA ⏳</span>
-        <span id="status-firms" class="badge" title="NASA FIRMS GeoJSON">FIRMS ⏳</span>
-        <span id="status-tiles" class="badge" title="Map tiles (OSM)">Tiles ⏳</span>
+        <span class="badge ok" title="Static AKQ links">AKQ Links ✅</span>
+        <span class="badge ok" title="Live map removed">Map Disabled ✅</span>
       </div>
-      <small>Data: NOAA NWS & NASA FIRMS · Auto-refresh hourly</small>
+      <small>Data: NOAA NWS · Regional links: NWS Wakefield (AKQ) · Auto-refresh hourly</small>
     </footer>
 
-    <!-- Libraries -->
-    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
-
     <script>
-      /**
-       * Single-file app logic
-       * - Verifies connectivity (badges) for NOAA, FIRMS, OSM tiles
-       * - Draws hotspots + 30 km buffers + county centers
-       * - Builds cards per county using NOAA hourly forecast
-       */
-
-      // ----------------------------- Config ---------------------------------
       const COUNTIES = [
         { name: "Amelia",        lat: 37.342, lon: -77.980 },
         { name: "Nottoway",      lat: 37.142, lon: -78.089 },
@@ -148,219 +287,99 @@
         { name: "Greensville",   lat: 36.686, lon: -77.542 },
       ];
 
-      const BUFFER_KM = 30; // conservative proximity window for nearby hotspots
-
-      // FIRMS endpoint referenced in the original file (appears to be geojson)
-  const FIRMS_URL = "https://firms.modaps.eosdis.nasa.gov/api/area/geojson/6ec6f9501dda0774853f77ee933238ed/VIIRS_NOAA20_NRT/-79,36,-77,38/2"
-  
-    // --------------------------- Status Helpers ----------------------------
-      function setBadge(id, state, label){
+      function setBadge(id, state, label) {
         const el = document.getElementById(id);
-        if(!el) return;
+        if (!el) return;
         el.classList.remove('ok','warn','err');
         if (state) el.classList.add(state);
-        if(label) el.textContent = label;
-      }
-      function showAlert(msg){ const box = document.getElementById('alerts'); if(!box) return; box.hidden = false; box.textContent = msg; }
-
-      // ----------------------------- Map Init --------------------------------
-      let map, layers = {};
-      function initMap(){
-        map = L.map('map');
-        const tiles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '© OpenStreetMap contributors' });
-        tiles.on('load', () => setBadge('status-tiles','ok','Tiles ✅'));
-        tiles.on('tileerror', () => setBadge('status-tiles','err','Tiles ❌'));
-        tiles.addTo(map);
-
-        L.control.scale({ metric: false }).addTo(map);
-        layers.hotspots = L.layerGroup().addTo(map);
-        layers.buffers  = L.layerGroup().addTo(map);
-        layers.centers  = L.layerGroup().addTo(map);
-
-        const overlays = { '🔥 Hotspots': layers.hotspots, '🟢 Buffers (30 km)': layers.buffers, '📍 County centers': layers.centers };
-        L.control.layers({}, overlays, { collapsed: true }).addTo(map);
-
-        const legend = L.control({ position: 'bottomright' });
-        legend.onAdd = () => {
-          const div = L.DomUtil.create('div','legend');
-          div.innerHTML = `
-            <div class="row"><span class="swatch" style="background:#ef4444"></span>Hotspot</div>
-            <div class="row"><span class="swatch" style="background:#22c55e"></span>30 km buffer</div>
-            <div class="row"><span class="swatch" style="background:#0ea5e9"></span>County center</div>`;
-          return div;
-        };
-        legend.addTo(map);
+        if (label) el.textContent = label;
       }
 
-      // --------------------------- Data Fetching -----------------------------
-      // FIRMS: attempt to parse JSON (geojson); if that fails, fall back to CSV parsing
-      async function fetchFIRMS(){
-        try {
-          const res = await fetch(FIRMS_URL, { cache: 'no-store' });
-          if(!res.ok) throw new Error(`FIRMS status ${res.status}`);
-          const text = await res.text();
-
-          // Try JSON first (geojson endpoint expected)
-          try {
-            const geojson = JSON.parse(text);
-            if (geojson && Array.isArray(geojson.features)) {
-              setBadge('status-firms','ok','FIRMS ✅');
-              return geojson;
-            }
-            // If parsed value isn't valid, fall through to CSV fallback
-          } catch (e) {
-            // not JSON — continue to CSV parsing below
-          }
-
-          // CSV fallback parsing (handles some FIRMS endpoints that return CSV)
-          const lines = text.split('\n').map(l => l.trim()).filter(l => l);
-          if (lines.length <= 1) {
-            setBadge('status-firms','ok','FIRMS ✅');
-            return { type: 'FeatureCollection', features: [] };
-          }
-          const headers = lines[0].split(',').map(h => h.trim());
-          const data = lines.slice(1).map(line => {
-            const values = line.split(',');
-            const obj = {};
-            headers.forEach((header, i) => obj[header] = values[i]);
-            return obj;
-          });
-          const features = data.map(row => ({
-            type: 'Feature',
-            geometry: {
-              type: 'Point',
-              coordinates: [parseFloat(row.longitude), parseFloat(row.latitude)]
-            },
-            properties: row
-          })).filter(f => Number.isFinite(f.geometry.coordinates[0]) && Number.isFinite(f.geometry.coordinates[1]));
-
-          setBadge('status-firms','ok','FIRMS ✅');
-          return { type: 'FeatureCollection', features };
-        } catch (e) {
-          console.warn('FIRMS fetch failed', e);
-          setBadge('status-firms','err','FIRMS ❌');
-          return { type:'FeatureCollection', features: [] };
-        }
+      function showAlert(msg) {
+        const box = document.getElementById('alerts');
+        if (!box) return;
+        box.hidden = false;
+        box.textContent = msg;
       }
 
-      // NOAA: include User-Agent (per api.weather.gov guidance). Replace contact URL/email as appropriate.
       const NOAA_HEADERS = {
         'Accept': 'application/geo+json',
         'User-Agent': 'Five-Forks-Fire-Weather (https://github.com/jamesdcochran-oss/Five-Forks-Fire-Weather)'
       };
 
-      async function fetchNOAAHourly(lat, lon){
+      async function fetchNOAAHourly(lat, lon) {
         try {
           const p = await fetch(`https://api.weather.gov/points/${lat},${lon}`, { headers: NOAA_HEADERS });
-          if(!p.ok) throw new Error(`points status ${p.status}`);
+          if (!p.ok) throw new Error(`points status ${p.status}`);
+
           const meta = await p.json();
           const hourlyUrl = meta?.properties?.forecastHourly;
-          if(!hourlyUrl) throw new Error('missing forecastHourly');
+          if (!hourlyUrl) throw new Error('missing forecastHourly');
+
           const f = await fetch(hourlyUrl, { cache: 'no-store', headers: NOAA_HEADERS });
-          if(!f.ok) throw new Error(`hourly status ${f.status}`);
+          if (!f.ok) throw new Error(`hourly status ${f.status}`);
+
           const hourly = await f.json();
           setBadge('status-noaa','ok','NOAA ✅');
           return hourly?.properties?.periods?.[0] ?? null;
-        } catch(e) {
+        } catch (e) {
           console.warn('NOAA fetch failed', e);
-          setBadge('status-noaa','warn','NOAA ⚠️'); // continue rendering with N/A
+          setBadge('status-noaa','warn','NOAA ⚠️');
           return null;
         }
       }
 
-      // --------------------------- Rendering ---------------------------------
-      function renderCardsStart(){ document.getElementById('cards').innerHTML = ''; }
+      function renderCardsStart() {
+        document.getElementById('cards').innerHTML = '';
+      }
 
-      function renderCountyCard({ name }, now, hotspotCount){
+      function renderCountyCard({ name }, now) {
         const el = document.createElement('article');
         el.className = 'card';
-        const summary = now ? `${now.temperature}\u00B0F • ${now.relativeHumidity?.value ?? 'N/A'}% RH • ${now.windSpeed ?? 'N/A'} ${now.windDirection ?? ''}` : 'N/A';
-        const label   = now?.shortForecast ?? 'N/A';
+
+        const summary = now
+          ? `${now.temperature}°F • ${now.relativeHumidity?.value ?? 'N/A'}% RH • ${now.windSpeed ?? 'N/A'} ${now.windDirection ?? ''}`
+          : 'N/A';
+
+        const label = now?.shortForecast ?? 'N/A';
+
         el.innerHTML = `
           <h3>${label.includes('Thunder') ? '⛈️' : '🌤️'} ${name}</h3>
           <div class="dim">Class: ${label}</div>
           <div class="metric">Wx: ${summary}</div>
-          <div class="metric">Hotspots (≤ ${BUFFER_KM} km): <strong>${hotspotCount}</strong></div>
+          <div class="metric">Regional tools: AKQ links at right</div>
         `;
+
         document.getElementById('cards').appendChild(el);
       }
 
-      function drawBuffersAndCenters(){
-        layers.buffers.clearLayers();
-        layers.centers.clearLayers();
-
-        const circles = [];
-        for(const c of COUNTIES){
-          const circle = turf.circle([c.lon, c.lat], BUFFER_KM, { units: 'kilometers', steps: 64 });
-          L.geoJSON(circle, { style: { color:'#22c55e', weight:1, fillOpacity:0.08 } }).addTo(layers.buffers);
-          circles.push(circle);
-          L.circleMarker([c.lat,c.lon], { radius:5, color:'#0ea5e9', fillColor:'#0ea5e9', fillOpacity:.9 }).bindTooltip(c.name).addTo(layers.centers);
-        }
-        const bbox = turf.bbox(turf.featureCollection(circles));
-        const sw = [bbox[1], bbox[0]]; const ne = [bbox[3], bbox[2]];
-        map.fitBounds([sw, ne], { padding:[30,30] });
-      }
-
-      function drawHotspots(geojson){
-        layers.hotspots.clearLayers();
-        if(!geojson?.features?.length) return;
-        L.geoJSON(geojson, {
-          filter: f => f && f.geometry && f.geometry.type === 'Point',
-          pointToLayer: (f, latlng) => {
-            const marker = L.circleMarker(latlng, {
-              radius:4, color:'#ef4444', fillColor:'#ef4444', fillOpacity:.85, weight:1
-            });
-            const props = f.properties || {};
-            const time = props.acq_date ? `${props.acq_date} ${props.acq_time ?? ''}` : (props.time ?? '');
-            const instrument = props.instrument || props.satellite || '';
-            const confidence = props.confidence ? `• ${props.confidence}` : (props.confidence_level ? `• ${props.confidence_level}` : '');
-            const popup = `<strong>🔥 Active fire</strong><br>${time}<br>${instrument} ${confidence}`.trim();
-            marker.bindPopup(popup);
-            return marker;
-          }
-        }).addTo(layers.hotspots);
-      }
-
-      // ------------------------------ Logic ----------------------------------
-      async function refresh(){
+      async function refresh() {
         renderCardsStart();
-        const firms = await fetchFIRMS();
-        drawHotspots(firms);
-        drawBuffersAndCenters();
 
-        const features = firms?.features ?? [];
-        for(const county of COUNTIES){
+        for (const county of COUNTIES) {
           const now = await fetchNOAAHourly(county.lat, county.lon);
-          const buffer = turf.circle([county.lon, county.lat], BUFFER_KM, { units: 'kilometers' });
-          const count = features.reduce((acc, f) => {
-            if(!f.geometry || f.geometry.type !== 'Point') return acc;
-            const [x,y] = f.geometry.coordinates; // lon, lat
-            return acc + (turf.booleanPointInPolygon(turf.point([x,y]), buffer) ? 1 : 0);
-          }, 0);
-          renderCountyCard(county, now, count);
+          renderCountyCard(county, now);
         }
 
-        // Self-check for Brunswick & Greensville
         const names = [...document.querySelectorAll('#cards .card h3')].map(h => h.textContent);
-        if (!names.some(t => t.includes('Brunswick')) || !names.some(t => t.includes('Greensville'))){
+
+        if (!names.some(t => t.includes('Brunswick')) || !names.some(t => t.includes('Greensville'))) {
           showAlert('Self-check failed: Brunswick and/or Greensville not rendered.');
         } else {
-          // hide alert if present
-          const box = document.getElementById('alerts'); if (box) { box.hidden = true; }
+          const box = document.getElementById('alerts');
+          if (box) box.hidden = true;
         }
       }
 
-      // ------------------------------ Boot -----------------------------------
       window.addEventListener('DOMContentLoaded', () => {
-        initMap();
         refresh();
-        setInterval(refresh, 60 * 60 * 1000); // hourly
+        setInterval(refresh, 60 * 60 * 1000);
       });
     </script>
 
     <script>
-      // Theme toggle
       const toggle = document.getElementById('themeToggle');
+
       if (toggle) {
         toggle.addEventListener('click', () => {
           document.body.classList.toggle('dark');
