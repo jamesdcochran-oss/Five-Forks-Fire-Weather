@@ -3,64 +3,58 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Five Forks Fire Weather — Single File</title>
+    <title>Five Forks Fire Weather — Simple Radar Map</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 
     <style>
       :root {
-        --bg:#f9fafb;
+        --bg:#f8fafc;
         --card:#ffffff;
-        --muted:#6b7280;
-        --shadow:0 2px 6px rgba(0,0,0,.08);
+        --text:#0f172a;
+        --muted:#64748b;
+        --shadow:0 2px 8px rgba(0,0,0,.08);
         --ok:#16a34a;
         --warn:#d97706;
-        --err:#dc2626;
         --neutral:#475569;
+        --header:#1d4ed8;
       }
 
       body.dark {
         --bg:#020617;
         --card:#0f172a;
-        --muted:#9ca3af;
-        --neutral:#e5e7eb;
-        color:#e5e7eb;
+        --text:#e5e7eb;
+        --muted:#94a3b8;
+        --neutral:#cbd5e1;
       }
 
-      body.dark .badge {
-        background:#111827;
-        color:var(--neutral);
-      }
-
-      * { box-sizing:border-box }
-      html, body { height:100% }
+      * { box-sizing:border-box; }
+      html, body { height:100%; }
 
       body {
         margin:0;
         font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
         background:var(--bg);
-        color:#0f172a;
+        color:var(--text);
       }
 
       .app-header {
         display:flex;
         align-items:center;
         justify-content:space-between;
-        padding:.75rem 1rem;
-        background:#1d4ed8;
+        gap:1rem;
+        padding:.85rem 1rem;
+        background:var(--header);
         color:#fff;
       }
 
       .app-header h1 {
         margin:0;
-        font-size:1.15rem;
+        font-size:1.1rem;
       }
 
+      .quick-links,
       .statusbar {
-        display:flex;
-        gap:.5rem;
-        align-items:center;
-      }
-
-      .quick-links {
         display:flex;
         gap:.5rem;
         align-items:center;
@@ -68,17 +62,24 @@
       }
 
       .badge {
-        padding:.25rem .5rem;
+        display:inline-block;
+        padding:.3rem .55rem;
         border-radius:999px;
         font-size:.8rem;
-        box-shadow:var(--shadow);
         background:#e5e7eb;
         color:var(--neutral);
+        box-shadow:var(--shadow);
+        text-decoration:none;
+        border:0;
       }
 
-      .badge.ok { color:#fff; background:var(--ok); }
-      .badge.warn { color:#fff; background:var(--warn); }
-      .badge.err { color:#fff; background:var(--err); }
+      body.dark .badge {
+        background:#111827;
+        color:#e5e7eb;
+      }
+
+      .badge.ok { background:var(--ok); color:#fff; }
+      .badge.warn { background:var(--warn); color:#fff; }
 
       main {
         display:grid;
@@ -88,7 +89,7 @@
 
       .cards {
         display:grid;
-        grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+        grid-template-columns:repeat(auto-fit,minmax(250px,1fr));
         gap:1rem;
       }
 
@@ -100,11 +101,8 @@
       }
 
       .card h3 {
-        margin:0 0 .25rem;
-        display:flex;
-        align-items:center;
-        gap:.4rem;
-        font-size:1.05rem;
+        margin:0 0 .35rem;
+        font-size:1rem;
       }
 
       .dim {
@@ -113,38 +111,20 @@
       }
 
       .metric {
-        margin:.25rem 0;
+        margin:.3rem 0;
       }
 
       .map-wrap {
-        min-height:320px;
+        height:520px;
         border-radius:12px;
         overflow:hidden;
         box-shadow:var(--shadow);
+        background:var(--card);
       }
 
-      .panel-grid {
-        display:grid;
-        grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
-        gap:.75rem;
-        margin-top:1rem;
-      }
-
-      .panel-link {
-        display:block;
-        text-decoration:none;
-        text-align:center;
-        padding:.75rem;
-        border-radius:10px;
-        background:#e5e7eb;
-        color:#0f172a;
-        box-shadow:var(--shadow);
-        font-size:.95rem;
-      }
-
-      body.dark .panel-link {
-        background:#111827;
-        color:#e5e7eb;
+      #map {
+        width:100%;
+        height:100%;
       }
 
       .alerts {
@@ -162,26 +142,26 @@
         padding:.75rem;
       }
 
+      .county-label {
+        background:rgba(15,23,42,.82);
+        color:#fff;
+        border:0;
+        border-radius:999px;
+        padding:.15rem .45rem;
+        font-size:.75rem;
+        font-weight:600;
+        box-shadow:none;
+      }
+
+      body.dark .county-label {
+        background:rgba(255,255,255,.14);
+        color:#fff;
+      }
+
       @media (max-width:768px) {
         .app-header {
           flex-direction:column;
-          gap:.75rem;
-          padding:1rem;
-        }
-
-        .app-header h1 {
-          font-size:1.5rem;
           text-align:center;
-        }
-
-        .quick-links {
-          justify-content:center;
-          width:100%;
-        }
-
-        .quick-links .badge {
-          font-size:.75rem;
-          padding:.2rem .4rem;
         }
 
         main {
@@ -191,38 +171,16 @@
 
         .cards {
           grid-template-columns:1fr;
-          gap:.75rem;
-        }
-
-        .card {
-          padding:.75rem;
         }
 
         .map-wrap {
-          min-height:auto;
-          margin-bottom:1rem;
-        }
-
-        .app-footer {
-          padding:.5rem;
-          font-size:.85rem;
-        }
-
-        .statusbar {
-          flex-wrap:wrap;
-          gap:.35rem;
-          justify-content:center;
-        }
-
-        .statusbar .badge {
-          font-size:.7rem;
-          padding:.2rem .4rem;
+          height:340px;
         }
       }
 
       @media (min-width:960px) {
         main {
-          grid-template-columns:1.2fr 1fr;
+          grid-template-columns:1.15fr 1fr;
           align-items:start;
         }
 
@@ -235,11 +193,11 @@
   <body>
     <header class="app-header">
       <h1>🔥 Five Forks Fire Weather</h1>
+
       <div class="quick-links">
-        <a href="https://www.weather.gov/akq/weatherstory" target="_blank" rel="noopener noreferrer" class="badge" style="text-decoration:none">📋 AKQ Story</a>
-        <a href="https://www.weather.gov/media/akq/DssPacket.pdf" target="_blank" rel="noopener noreferrer" class="badge" style="text-decoration:none">🗞️ Briefing</a>
-        <a href="http://www.weather.gov/akq/FIREMAIN" target="_blank" rel="noopener noreferrer" class="badge" style="text-decoration:none">🔥 Fire Wx</a>
-        <a href="https://radar.weather.gov/station/KAKQ/standard" target="_blank" rel="noopener noreferrer" class="badge" style="text-decoration:none">📡 Radar</a>
+        <a href="https://www.weather.gov/akq/weatherstory" target="_blank" rel="noopener noreferrer" class="badge">📋 AKQ Story</a>
+        <a href="https://radar.weather.gov/station/KAKQ/standard" target="_blank" rel="noopener noreferrer" class="badge">📡 Radar</a>
+        <a href="http://www.weather.gov/akq/FIREMAIN" target="_blank" rel="noopener noreferrer" class="badge">🔥 Fire Wx</a>
         <button id="themeToggle" class="badge">🌙 Dark</button>
       </div>
     </header>
@@ -247,35 +205,23 @@
     <main>
       <section id="cards" class="cards" aria-label="County conditions"></section>
 
-      <section class="map-wrap" aria-label="Regional weather links">
-        <div class="card" style="height:100%; margin:0;">
-          <h3>Regional Weather</h3>
-          <div class="dim">Static links instead of live map layers</div>
-
-          <div class="panel-grid">
-            <a class="panel-link" href="https://www.weather.gov/akq/weatherstory" target="_blank" rel="noopener noreferrer">📋 AKQ Story</a>
-            <a class="panel-link" href="https://radar.weather.gov/station/KAKQ/standard" target="_blank" rel="noopener noreferrer">📡 Radar</a>
-            <a class="panel-link" href="https://www.weather.gov/wrh/hazards?obs=true&wfo=akq&hazard=true&hazard_type=all&hazard_opacity=80&tab=legend" target="_blank" rel="noopener noreferrer">⚠️ Hazards</a>
-            <a class="panel-link" href="https://www.star.nesdis.noaa.gov/GOES/wfo.php?wfo=akq" target="_blank" rel="noopener noreferrer">🛰️ Satellite</a>
-            <a class="panel-link" href="https://water.noaa.gov/wfo/akq" target="_blank" rel="noopener noreferrer">🌊 Rivers</a>
-            <a class="panel-link" href="https://www.wpc.ncep.noaa.gov/NationalForecastChart/map.php" target="_blank" rel="noopener noreferrer">🗺️ Forecast Maps</a>
-            <a class="panel-link" href="https://forecast.weather.gov/gridpoint.php?site=akq&TypeDefault=graphical" target="_blank" rel="noopener noreferrer">🕒 Hourly Graph</a>
-            <a class="panel-link" href="http://www.weather.gov/akq/Brief" target="_blank" rel="noopener noreferrer">📎 Briefings</a>
-          </div>
-        </div>
+      <section class="map-wrap" aria-label="Simple radar map">
+        <div id="map"></div>
       </section>
 
       <section id="alerts" class="alerts" aria-live="polite" hidden></section>
     </main>
 
     <footer class="app-footer">
-      <div class="statusbar" style="text-align:center;margin-bottom:0.5rem" aria-live="polite">
+      <div class="statusbar" style="justify-content:center; margin-bottom:.5rem;" aria-live="polite">
         <span id="status-noaa" class="badge" title="NOAA Weather API">NOAA ⏳</span>
-        <span class="badge ok" title="Static AKQ links">AKQ Links ✅</span>
-        <span class="badge ok" title="Live map removed">Map Disabled ✅</span>
+        <span id="status-radar" class="badge" title="NOAA Radar WMS">Radar ⏳</span>
+        <span id="status-tiles" class="badge" title="Map tiles">Tiles ⏳</span>
       </div>
-      <small>Data: NOAA NWS · Regional links: NWS Wakefield (AKQ) · Auto-refresh hourly</small>
+      <small>County cards: NWS API · Map: NCEP OpenGeo CONUS base reflectivity WMS</small>
     </footer>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
     <script>
       const COUNTIES = [
@@ -287,25 +233,81 @@
         { name: "Greensville",   lat: 36.686, lon: -77.542 },
       ];
 
+      const NOAA_HEADERS = {
+        "Accept": "application/geo+json",
+        "User-Agent": "Five-Forks-Fire-Weather (https://github.com/jamesdcochran-oss/Five-Forks-Fire-Weather)"
+      };
+
+      let map;
+      let radarLayer;
+      let countyLayer;
+
       function setBadge(id, state, label) {
         const el = document.getElementById(id);
         if (!el) return;
-        el.classList.remove('ok','warn','err');
+        el.classList.remove("ok", "warn");
         if (state) el.classList.add(state);
         if (label) el.textContent = label;
       }
 
       function showAlert(msg) {
-        const box = document.getElementById('alerts');
+        const box = document.getElementById("alerts");
         if (!box) return;
         box.hidden = false;
         box.textContent = msg;
       }
 
-      const NOAA_HEADERS = {
-        'Accept': 'application/geo+json',
-        'User-Agent': 'Five-Forks-Fire-Weather (https://github.com/jamesdcochran-oss/Five-Forks-Fire-Weather)'
-      };
+      function initMap() {
+        map = L.map("map", {
+          zoomControl: true,
+          attributionControl: true
+        });
+
+        const base = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          maxZoom: 18,
+          attribution: "&copy; OpenStreetMap contributors"
+        });
+
+        base.on("load", () => setBadge("status-tiles", "ok", "Tiles ✅"));
+        base.on("tileerror", () => setBadge("status-tiles", "warn", "Tiles ⚠️"));
+        base.addTo(map);
+
+        radarLayer = L.tileLayer.wms("https://opengeo.ncep.noaa.gov/geoserver/conus/conus_bref_qcd/ows?", {
+          layers: "conus_bref_qcd",
+          format: "image/png",
+          transparent: true,
+          version: "1.3.0",
+          crs: L.CRS.EPSG3857,
+          opacity: 0.32
+        });
+
+        radarLayer.on("load", () => setBadge("status-radar", "ok", "Radar ✅"));
+        radarLayer.on("tileerror", () => setBadge("status-radar", "warn", "Radar ⚠️"));
+        radarLayer.addTo(map);
+
+        countyLayer = L.layerGroup().addTo(map);
+
+        COUNTIES.forEach(c => {
+          L.circleMarker([c.lat, c.lon], {
+            radius: 4,
+            color: "#0ea5e9",
+            fillColor: "#0ea5e9",
+            fillOpacity: 0.95,
+            weight: 1
+          }).addTo(countyLayer);
+
+          L.marker([c.lat, c.lon], {
+            icon: L.divIcon({
+              className: "county-label",
+              html: c.name,
+              iconSize: null
+            })
+          }).addTo(countyLayer);
+        });
+
+        const bounds = L.latLngBounds(COUNTIES.map(c => [c.lat, c.lon]));
+        map.fitBounds(bounds.pad(0.45));
+      }
 
       async function fetchNOAAHourly(lat, lon) {
         try {
@@ -314,43 +316,43 @@
 
           const meta = await p.json();
           const hourlyUrl = meta?.properties?.forecastHourly;
-          if (!hourlyUrl) throw new Error('missing forecastHourly');
+          if (!hourlyUrl) throw new Error("missing forecastHourly");
 
-          const f = await fetch(hourlyUrl, { cache: 'no-store', headers: NOAA_HEADERS });
+          const f = await fetch(hourlyUrl, { cache: "no-store", headers: NOAA_HEADERS });
           if (!f.ok) throw new Error(`hourly status ${f.status}`);
 
           const hourly = await f.json();
-          setBadge('status-noaa','ok','NOAA ✅');
+          setBadge("status-noaa", "ok", "NOAA ✅");
           return hourly?.properties?.periods?.[0] ?? null;
         } catch (e) {
-          console.warn('NOAA fetch failed', e);
-          setBadge('status-noaa','warn','NOAA ⚠️');
+          console.warn("NOAA fetch failed", e);
+          setBadge("status-noaa", "warn", "NOAA ⚠️");
           return null;
         }
       }
 
       function renderCardsStart() {
-        document.getElementById('cards').innerHTML = '';
+        document.getElementById("cards").innerHTML = "";
       }
 
       function renderCountyCard({ name }, now) {
-        const el = document.createElement('article');
-        el.className = 'card';
+        const el = document.createElement("article");
+        el.className = "card";
 
         const summary = now
-          ? `${now.temperature}°F • ${now.relativeHumidity?.value ?? 'N/A'}% RH • ${now.windSpeed ?? 'N/A'} ${now.windDirection ?? ''}`
-          : 'N/A';
+          ? `${now.temperature}°F • ${now.relativeHumidity?.value ?? "N/A"}% RH • ${now.windSpeed ?? "N/A"} ${now.windDirection ?? ""}`
+          : "N/A";
 
-        const label = now?.shortForecast ?? 'N/A';
+        const label = now?.shortForecast ?? "N/A";
 
         el.innerHTML = `
-          <h3>${label.includes('Thunder') ? '⛈️' : '🌤️'} ${name}</h3>
+          <h3>${label.includes("Thunder") ? "⛈️" : "🌤️"} ${name}</h3>
           <div class="dim">Class: ${label}</div>
           <div class="metric">Wx: ${summary}</div>
-          <div class="metric">Regional tools: AKQ links at right</div>
+          <div class="metric">Map: faint NOAA reflectivity background</div>
         `;
 
-        document.getElementById('cards').appendChild(el);
+        document.getElementById("cards").appendChild(el);
       }
 
       async function refresh() {
@@ -361,29 +363,29 @@
           renderCountyCard(county, now);
         }
 
-        const names = [...document.querySelectorAll('#cards .card h3')].map(h => h.textContent);
+        const names = [...document.querySelectorAll("#cards .card h3")].map(h => h.textContent);
 
-        if (!names.some(t => t.includes('Brunswick')) || !names.some(t => t.includes('Greensville'))) {
-          showAlert('Self-check failed: Brunswick and/or Greensville not rendered.');
+        if (!names.some(t => t.includes("Brunswick")) || !names.some(t => t.includes("Greensville"))) {
+          showAlert("Self-check failed: Brunswick and/or Greensville not rendered.");
         } else {
-          const box = document.getElementById('alerts');
+          const box = document.getElementById("alerts");
           if (box) box.hidden = true;
         }
+
+        if (radarLayer) radarLayer.redraw();
       }
 
-      window.addEventListener('DOMContentLoaded', () => {
+      window.addEventListener("DOMContentLoaded", () => {
+        initMap();
         refresh();
         setInterval(refresh, 60 * 60 * 1000);
       });
-    </script>
 
-    <script>
-      const toggle = document.getElementById('themeToggle');
-
+      const toggle = document.getElementById("themeToggle");
       if (toggle) {
-        toggle.addEventListener('click', () => {
-          document.body.classList.toggle('dark');
-          toggle.textContent = document.body.classList.contains('dark') ? '☀️ Light' : '🌙 Dark';
+        toggle.addEventListener("click", () => {
+          document.body.classList.toggle("dark");
+          toggle.textContent = document.body.classList.contains("dark") ? "☀️ Light" : "🌙 Dark";
         });
       }
     </script>
