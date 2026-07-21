@@ -121,7 +121,7 @@
         <span id="status-noaa" class="badge" title="NOAA Weather API">NOAA ⏳</span>
         <span id="status-firms" class="badge" title="NASA FIRMS GeoJSON">FIRMS ⏳</span>
         <span id="status-hotspots" class="badge" title="Chosen hotspot source">Hotspots ⏳</span>
-        <span id="status-refresh" class="badge" title="Hotspot refresh status">Refresh Not Started</span>
+        <span id="status-refresh" class="badge" title="Hotspot refresh status">Refresh Idle</span>
         <span id="status-tiles" class="badge" title="Map tiles (OSM)">Tiles ⏳</span>
       </div>
       <small>Data: NOAA NWS & NASA FIRMS · Auto-refresh every 15 minutes</small>
@@ -290,10 +290,15 @@
           setBadge("status-refresh","warn","Refresh queued");
           return refreshInFlight;
         }
-        setBadge("status-refresh", null, "Refresh Loading");
+        setBadge("status-refresh", null, "Refreshing...");
         refreshInFlight = (async () => {
           try {
             const hotspotResult = await fetchHotspots();
+            if (requestId !== latestRequestedRefreshId) {
+              console.info("Discarding stale hotspot result", { requestId, latestRequestedRefreshId });
+              setBadge("status-refresh","warn", refreshQueued ? "Refresh queued" : "Refresh superseded");
+              return;
+            }
             const geojson = hotspotResult?.geojson ?? { type:"FeatureCollection", features:[] };
             const features = geojson.features ?? [];
             const results = await Promise.all(COUNTIES.map(async (county) => {
@@ -303,7 +308,7 @@
               return { county, now, count };
             }));
             if (requestId !== latestRequestedRefreshId) {
-              console.info("Discarding stale refresh result", { requestId, latestRequestedRefreshId });
+              console.info("Discarding stale refresh result before apply", { requestId, latestRequestedRefreshId });
               setBadge("status-refresh","warn", refreshQueued ? "Refresh queued" : "Refresh superseded");
               return;
             }
@@ -316,10 +321,7 @@
             refreshInFlight = null;
             if (refreshQueued) {
               refreshQueued = false;
-              refresh().catch(e => {
-                setBadge("status-refresh","err","Refresh failed");
-                console.warn("Queued refresh failed", e);
-              });
+              refresh().catch(e => console.warn("Queued refresh failed", e));
             }
           }
         })();
