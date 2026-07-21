@@ -121,7 +121,7 @@
         <span id="status-noaa" class="badge" title="NOAA Weather API">NOAA ⏳</span>
         <span id="status-firms" class="badge" title="NASA FIRMS GeoJSON">FIRMS ⏳</span>
         <span id="status-hotspots" class="badge" title="Chosen hotspot source">Hotspots ⏳</span>
-        <span id="status-refresh" class="badge" title="Hotspot refresh status">Refresh idle</span>
+        <span id="status-refresh" class="badge" title="Hotspot refresh status">Refresh ⏳</span>
         <span id="status-tiles" class="badge" title="Map tiles (OSM)">Tiles ⏳</span>
       </div>
       <small>Data: NOAA NWS & NASA FIRMS · Auto-refresh every 15 minutes</small>
@@ -157,6 +157,7 @@
 
       let map, layers = {};
       const countyBuffers = new Map();
+      // Serialize refreshes and drop stale results when a newer refresh is requested.
       let refreshInFlight = null;
       let refreshQueued = false;
       let latestRequestedRefreshId = 0;
@@ -300,7 +301,7 @@
               const count = features.reduce((acc, f) => { if(!f.geometry || f.geometry.type !== "Point") return acc; const [x,y] = f.geometry.coordinates; return acc + (turf.booleanPointInPolygon(turf.point([x,y]), buffer) ? 1 : 0); },0);
               return { county, now, count };
             }));
-            if (requestId !== latestRequestedRefreshId) return;
+            if (requestId !== latestRequestedRefreshId) { console.info("Discarding stale refresh result", { requestId, latestRequestedRefreshId }); return; }
             applyRefreshResults(hotspotResult, results);
             setBadge("status-refresh","ok", formatRefreshTime());
           } catch (e) {
@@ -310,14 +311,14 @@
             refreshInFlight = null;
             if (refreshQueued) {
               refreshQueued = false;
-              void refresh();
+              refresh().catch(e => console.warn("Queued refresh failed", e));
             }
           }
         })();
         return refreshInFlight;
       }
 
-      window.addEventListener("DOMContentLoaded", () => { initMap(); void refresh(); setInterval(() => { void refresh(); }, CONFIG.REFRESH_MS); });
+      window.addEventListener("DOMContentLoaded", () => { initMap(); refresh().catch(e => console.warn("Initial refresh failed", e)); setInterval(() => { refresh().catch(e => console.warn("Scheduled refresh failed", e)); }, CONFIG.REFRESH_MS); });
     </script>
 
     <script>
