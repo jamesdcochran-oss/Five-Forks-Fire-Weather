@@ -121,7 +121,7 @@
         <span id="status-noaa" class="badge" title="NOAA Weather API">NOAA ⏳</span>
         <span id="status-firms" class="badge" title="NASA FIRMS GeoJSON">FIRMS ⏳</span>
         <span id="status-hotspots" class="badge" title="Chosen hotspot source">Hotspots ⏳</span>
-        <span id="status-refresh" class="badge" title="Hotspot refresh status">Refresh Idle</span>
+        <span id="status-refresh" class="badge" title="Hotspot refresh status">Refresh: Idle</span>
         <span id="status-tiles" class="badge" title="Map tiles (OSM)">Tiles ⏳</span>
       </div>
       <small>Data: NOAA NWS & NASA FIRMS · Auto-refresh every 15 minutes</small>
@@ -141,6 +141,7 @@
         { name: "Greensville", lat: 36.686, lon: -77.542 },
       ];
       const BUFFER_KM = CONFIG.BUFFER_KM;
+      const REFRESH_STATUS = { IDLE: "Refresh: Idle", LOADING: "Refreshing...", QUEUED: "Refresh queued", SUPERSEDED: "Refresh superseded", FAILED: "Refresh failed" };
       const FIRMS_URL = "https://firms.modaps.eosdis.nasa.gov/api/area/geojson/6ec6f9501dda0774853f77ee933238ed/VIIRS_NOAA20_NRT/-79,36,-77,38/2";
       const NWS_HOTSPOT_GEOJSON_URL = "https://www.weather.gov/source/dlh/fire-hotspots.geojson";
       const LOCAL_CSV_URL = "./hotspots.csv";
@@ -154,6 +155,7 @@
       function showAlert(msg){ const box = document.getElementById("alerts"); if(!box) return; box.hidden = false; box.textContent = msg; }
       function hideAlert(){ const box = document.getElementById("alerts"); if(box) box.hidden = true; }
       function formatRefreshTime(date = new Date()){ return `Updated ${date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" })}`; }
+      function getStaleRefreshLabel(){ return refreshQueued ? REFRESH_STATUS.QUEUED : REFRESH_STATUS.SUPERSEDED; }
 
       let map, layers = {};
       const countyBuffers = new Map();
@@ -287,16 +289,16 @@
         if (refreshInFlight) {
           // Callers reuse the in-flight promise while the latest requested refresh is queued.
           refreshQueued = true;
-          setBadge("status-refresh","warn","Refresh queued");
+          setBadge("status-refresh","warn", REFRESH_STATUS.QUEUED);
           return refreshInFlight;
         }
-        setBadge("status-refresh", null, "Refreshing...");
+        setBadge("status-refresh", null, REFRESH_STATUS.LOADING);
         refreshInFlight = (async () => {
           try {
             const hotspotResult = await fetchHotspots();
             if (requestId !== latestRequestedRefreshId) {
               console.info("Discarding stale hotspot result", { requestId, latestRequestedRefreshId });
-              setBadge("status-refresh","warn", refreshQueued ? "Refresh queued" : "Refresh superseded");
+              setBadge("status-refresh","warn", getStaleRefreshLabel());
               return;
             }
             const geojson = hotspotResult?.geojson ?? { type:"FeatureCollection", features:[] };
@@ -309,14 +311,14 @@
             }));
             if (requestId !== latestRequestedRefreshId) {
               console.info("Discarding stale refresh result before apply", { requestId, latestRequestedRefreshId });
-              setBadge("status-refresh","warn", refreshQueued ? "Refresh queued" : "Refresh superseded");
+              setBadge("status-refresh","warn", getStaleRefreshLabel());
               return;
             }
             applyRefreshResults(hotspotResult, results);
             setBadge("status-refresh","ok", formatRefreshTime());
           } catch (e) {
             console.warn("Refresh failed", e);
-            setBadge("status-refresh","err","Refresh failed");
+            setBadge("status-refresh","err", REFRESH_STATUS.FAILED);
           } finally {
             refreshInFlight = null;
             if (refreshQueued) {
