@@ -123,14 +123,14 @@
         <span id="status-hotspots" class="badge" title="Chosen hotspot source">Hotspots ⏳</span>
         <span id="status-tiles" class="badge" title="Map tiles (OSM)">Tiles ⏳</span>
       </div>
-      <small>Data: NOAA NWS & NASA FIRMS · Auto-refresh hourly</small>
+      <small>Data: NOAA NWS & NASA FIRMS · Auto-refresh every 15 minutes</small>
     </footer>
 
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
 
     <script>
-      const CONFIG = { BUFFER_KM: 30, REFRESH_MS: 60 * 60 * 1000 };
+      const CONFIG = { BUFFER_KM: 30, REFRESH_MS: 15 * 60 * 1000 };
       const COUNTIES = [
         { name: "Amelia", lat: 37.342, lon: -77.980 },
         { name: "Nottoway", lat: 37.142, lon: -78.089 },
