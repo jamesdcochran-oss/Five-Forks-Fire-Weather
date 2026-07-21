@@ -121,6 +121,7 @@
         <span id="status-noaa" class="badge" title="NOAA Weather API">NOAA ⏳</span>
         <span id="status-firms" class="badge" title="NASA FIRMS GeoJSON">FIRMS ⏳</span>
         <span id="status-hotspots" class="badge" title="Chosen hotspot source">Hotspots ⏳</span>
+        <span id="status-refresh" class="badge" title="Hotspot refresh status">Refresh idle</span>
         <span id="status-tiles" class="badge" title="Map tiles (OSM)">Tiles ⏳</span>
       </div>
       <small>Data: NOAA NWS & NASA FIRMS · Auto-refresh every 15 minutes</small>
@@ -151,9 +152,14 @@
 
       function setBadge(id, state, label){ const el = document.getElementById(id); if(!el) return; el.classList.remove("ok","warn","err"); if (state) el.classList.add(state); if (label) el.textContent = label; }
       function showAlert(msg){ const box = document.getElementById("alerts"); if(!box) return; box.hidden = false; box.textContent = msg; }
+      function hideAlert(){ const box = document.getElementById("alerts"); if(box) box.hidden = true; }
+      function formatRefreshTime(date = new Date()){ return `Updated ${date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" })}`; }
 
       let map, layers = {};
       const countyBuffers = new Map();
+      let refreshInFlight = null;
+      let refreshQueued = false;
+      let latestRequestedRefreshId = 0;
 
       function getCountyBuffer(county){
         if(!countyBuffers.has(county.name)) countyBuffers.set(county.name, turf.circle([county.lon, county.lat], BUFFER_KM, {units:"kilometers", steps:64}));
@@ -263,25 +269,55 @@
         }).addTo(layers.hotspots);
       }
 
-      async function refresh(){
-        renderCardsStart();
-        const hotspotResult = await fetchHotspots();
+      function applyRefreshResults(hotspotResult, results){
         const geojson = hotspotResult?.geojson ?? { type:"FeatureCollection", features:[] };
+        renderCardsStart();
         drawHotspots(geojson, hotspotResult?.source || "unknown");
         drawBuffersAndCenters();
-        const features = geojson.features ?? [];
-        const results = await Promise.all(COUNTIES.map(async (county) => {
-          const now = await fetchNOAAHourly(county.lat, county.lon);
-          const buffer = getCountyBuffer(county);
-          const count = features.reduce((acc, f) => { if(!f.geometry || f.geometry.type !== "Point") return acc; const [x,y] = f.geometry.coordinates; return acc + (turf.booleanPointInPolygon(turf.point([x,y]), buffer) ? 1 : 0); },0);
-          return { county, now, count };
-        }));
         results.forEach(r => renderCountyCard(r.county, r.now, r.count));
         const names = [...document.querySelectorAll("#cards .card h3")].map(h => h.textContent);
-        if (!names.some(t => t.includes("Brunswick")) || !names.some(t => t.includes("Greensville"))) showAlert("Self-check failed: Brunswick and/or Greensville not rendered."); else { const box = document.getElementById("alerts"); if (box) box.hidden = true; }
+        if (!names.some(t => t.includes("Brunswick")) || !names.some(t => t.includes("Greensville"))) showAlert("Self-check failed: Brunswick and/or Greensville not rendered.");
+        else hideAlert();
       }
 
-      window.addEventListener("DOMContentLoaded", () => { initMap(); refresh(); setInterval(refresh, CONFIG.REFRESH_MS); });
+      async function refresh(){
+        latestRequestedRefreshId += 1;
+        const requestId = latestRequestedRefreshId;
+        if (refreshInFlight) {
+          refreshQueued = true;
+          setBadge("status-refresh","warn","Refresh queued");
+          return refreshInFlight;
+        }
+        setBadge("status-refresh", null, "Refreshing ⏳");
+        refreshInFlight = (async () => {
+          try {
+            const hotspotResult = await fetchHotspots();
+            const geojson = hotspotResult?.geojson ?? { type:"FeatureCollection", features:[] };
+            const features = geojson.features ?? [];
+            const results = await Promise.all(COUNTIES.map(async (county) => {
+              const now = await fetchNOAAHourly(county.lat, county.lon);
+              const buffer = getCountyBuffer(county);
+              const count = features.reduce((acc, f) => { if(!f.geometry || f.geometry.type !== "Point") return acc; const [x,y] = f.geometry.coordinates; return acc + (turf.booleanPointInPolygon(turf.point([x,y]), buffer) ? 1 : 0); },0);
+              return { county, now, count };
+            }));
+            if (requestId !== latestRequestedRefreshId) return;
+            applyRefreshResults(hotspotResult, results);
+            setBadge("status-refresh","ok", formatRefreshTime());
+          } catch (e) {
+            console.warn("Refresh failed", e);
+            setBadge("status-refresh","err","Refresh failed");
+          } finally {
+            refreshInFlight = null;
+            if (refreshQueued) {
+              refreshQueued = false;
+              void refresh();
+            }
+          }
+        })();
+        return refreshInFlight;
+      }
+
+      window.addEventListener("DOMContentLoaded", () => { initMap(); void refresh(); setInterval(() => { void refresh(); }, CONFIG.REFRESH_MS); });
     </script>
 
     <script>
