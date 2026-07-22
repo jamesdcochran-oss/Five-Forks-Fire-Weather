@@ -123,7 +123,7 @@
         <span id="status-hotspots" class="badge" title="Chosen hotspot source">Hotspots ⏳</span>
         <span id="status-tiles" class="badge" title="Map tiles (OSM)">Tiles ⏳</span>
       </div>
-      <small>Data: NOAA NWS & NASA FIRMS · Auto-refresh every 15 minutes</small>
+      <small id="footer-meta">Data: NOAA NWS & NASA FIRMS · Auto-refresh every 15 minutes</small>
     </footer>
 
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -139,109 +139,336 @@
         { name: "Brunswick", lat: 36.758, lon: -77.847 },
         { name: "Greensville", lat: 36.686, lon: -77.542 },
       ];
+
       const BUFFER_KM = CONFIG.BUFFER_KM;
-      const FIRMS_URL = "https://firms.modaps.eosdis.nasa.gov/api/area/geojson/6ec6f9501dda0774853f77ee933238ed/VIIRS_NOAA20_NRT/-79,36,-77,38/2";
-      const NWS_HOTSPOT_GEOJSON_URL = "https://www.weather.gov/source/dlh/fire-hotspots.geojson";
+
+      // Direct FIRMS browser calls are blocked by CORS on GitHub Pages.
+      // Set this to your Cloudflare Worker URL when ready.
+      const FIRMS_URL = "";
+
+      // Disabled because previous endpoint returned 404.
+      const NWS_HOTSPOT_GEOJSON_URL = "";
+
       const LOCAL_CSV_URL = "./hotspots.csv";
+      const USE_INLINE_FALLBACK = true;
+
       const INLINE_CSV = `latitude,longitude,bright_ti4,scan,track,acq_date,acq_time,satellite,instrument,confidence,version,bright_ti5,frp,daynight
 37.18095,-77.4473,317.15,0.39,0.36,2026-07-20,709,N20,VIIRS,n,2.0NRT,292.83,1.6,N
 37.32526,-77.80234,310.35,0.39,0.36,2026-07-20,709,N20,VIIRS,n,2.0NRT,290.72,0.77,N
 37.47763,-78.43346,302.49,0.38,0.36,2026-07-20,709,N20,VIIRS,n,2.0NRT,291.34,0.64,N`;
-      const NOAA_HEADERS = { Accept: "application/geo+json", "User-Agent": "Five-Forks-Fire-Weather (https://github.com/jamesdcochran-oss/Five-Forks-Fire-Weather)" };
 
-      function setBadge(id, state, label){ const el = document.getElementById(id); if(!el) return; el.classList.remove("ok","warn","err"); if (state) el.classList.add(state); if (label) el.textContent = label; }
-      function showAlert(msg){ const box = document.getElementById("alerts"); if(!box) return; box.hidden = false; box.textContent = msg; }
+      const NOAA_HEADERS = {
+        Accept: "application/geo+json",
+        "User-Agent": "Five-Forks-Fire-Weather (https://github.com/jamesdcochran-oss/Five-Forks-Fire-Weather)"
+      };
 
       let map, layers = {};
       const countyBuffers = new Map();
+      let lastHotspotMeta = { source: "none", at: null };
+
+      function setBadge(id, state, label){
+        const el = document.getElementById(id);
+        if(!el) return;
+        el.classList.remove("ok","warn","err");
+        if (state) el.classList.add(state);
+        if (label) el.textContent = label;
+      }
+
+      function showAlert(msg){
+        const box = document.getElementById("alerts");
+        if(!box) return;
+        box.hidden = false;
+        box.textContent = msg;
+      }
+
+      function hideAlert(){
+        const box = document.getElementById("alerts");
+        if (box) box.hidden = true;
+      }
+
+      function markHotspotMeta(source){
+        lastHotspotMeta = { source, at: new Date() };
+      }
+
+      function renderHotspotMeta(){
+        const el = document.getElementById("footer-meta");
+        if (!el) return;
+        const at = lastHotspotMeta.at ? lastHotspotMeta.at.toLocaleString() : "never";
+        el.textContent = `Data: NOAA NWS & NASA FIRMS · Hotspots source: ${lastHotspotMeta.source} · Updated: ${at}`;
+      }
 
       function getCountyBuffer(county){
-        if(!countyBuffers.has(county.name)) countyBuffers.set(county.name, turf.circle([county.lon, county.lat], BUFFER_KM, {units:"kilometers", steps:64}));
+        if(!countyBuffers.has(county.name)) {
+          countyBuffers.set(
+            county.name,
+            turf.circle([county.lon, county.lat], BUFFER_KM, {units:"kilometers", steps:64})
+          );
+        }
         return countyBuffers.get(county.name);
       }
 
       function initMap(){
         map = L.map("map");
-        const tiles = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, attribution: "© OpenStreetMap contributors" });
+        const tiles = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          maxZoom: 18,
+          attribution: "© OpenStreetMap contributors"
+        });
         tiles.on("load", () => setBadge("status-tiles","ok","Tiles ✅"));
         tiles.on("tileerror", () => setBadge("status-tiles","err","Tiles ❌"));
         tiles.addTo(map);
+
         L.control.scale({ metric: false }).addTo(map);
         layers.hotspots = L.layerGroup().addTo(map);
         layers.buffers = L.layerGroup().addTo(map);
         layers.centers = L.layerGroup().addTo(map);
-        L.control.layers({}, { "🔥 Hotspots": layers.hotspots, "🟢 Buffers (30 km)": layers.buffers, "📍 County centers": layers.centers }, { collapsed: true }).addTo(map);
+
+        L.control.layers({}, {
+          "🔥 Hotspots": layers.hotspots,
+          "🟢 Buffers (30 km)": layers.buffers,
+          "📍 County centers": layers.centers
+        }, { collapsed: true }).addTo(map);
+
         const legend = L.control({ position: "bottomright" });
-        legend.onAdd = () => { const div = L.DomUtil.create("div","legend"); div.innerHTML = `<div class="row"><span class="swatch" style="background:#ef4444"></span>Hotspot</div><div class="row"><span class="swatch" style="background:#22c55e"></span>30 km buffer</div><div class="row"><span class="swatch" style="background:#0ea5e9"></span>County center</div>`; return div; };
+        legend.onAdd = () => {
+          const div = L.DomUtil.create("div","legend");
+          div.innerHTML = `
+            <div class="row"><span class="swatch" style="background:#ef4444"></span>Hotspot</div>
+            <div class="row"><span class="swatch" style="background:#22c55e"></span>30 km buffer</div>
+            <div class="row"><span class="swatch" style="background:#0ea5e9"></span>County center</div>
+          `;
+          return div;
+        };
         legend.addTo(map);
       }
 
       function parseCsvLine(line) {
-        const out = []; let cur = ""; let inQuotes = false;
+        const out = [];
+        let cur = "";
+        let inQuotes = false;
+
         for (let i = 0; i < line.length; i++) {
           const ch = line[i];
-          if (ch === '"') { if (inQuotes && line[i + 1] === '"') { cur += '"'; i++; } else inQuotes = !inQuotes; }
-          else if (ch === "," && !inQuotes) { out.push(cur); cur = ""; }
-          else { cur += ch; }
+          if (ch === '"') {
+            if (inQuotes && line[i + 1] === '"') { cur += '"'; i++; }
+            else inQuotes = !inQuotes;
+          } else if (ch === "," && !inQuotes) {
+            out.push(cur);
+            cur = "";
+          } else {
+            cur += ch;
+          }
         }
-        out.push(cur); return out.map(s => s.trim());
+        out.push(cur);
+        return out.map(s => s.trim());
       }
-      function parseCsv(csvText){ const lines = csvText.trim().split(/\r?\n/).filter(Boolean); if (lines.length < 2) return []; const headers = parseCsvLine(lines[0]); return lines.slice(1).map(line => { const cols = parseCsvLine(line); const row = {}; headers.forEach((h,i) => row[h] = cols[i] ?? ""); return row; }); }
-      function toNum(v, fallback = 0){ const n = Number(v); return Number.isFinite(n) ? n : fallback; }
-      function csvRowsToGeojson(rows){ return { type: "FeatureCollection", features: rows.filter(r => r.latitude && r.longitude).map(r => ({ type: "Feature", geometry: { type: "Point", coordinates: [toNum(r.longitude), toNum(r.latitude)] }, properties: { ...r } })) }; }
 
-      async function fetchFromNWSGeoJSON(){ const res = await fetch(NWS_HOTSPOT_GEOJSON_URL, { cache: "no-store" }); if (!res.ok) throw new Error(`NWS hotspots status ${res.status}`); const data = await res.json(); if (!data?.features || !Array.isArray(data.features)) throw new Error("NWS hotspots invalid"); return { source: "nws", geojson: data }; }
-      async function fetchFromLocalCSV(){ const res = await fetch(LOCAL_CSV_URL, { cache: "no-store" }); if (!res.ok) throw new Error(`Local CSV status ${res.status}`); const text = await res.text(); return { source: "local-csv", geojson: csvRowsToGeojson(parseCsv(text)) }; }
-      function fetchFromInlineCSV(){ return { source: "inline-csv", geojson: csvRowsToGeojson(parseCsv(INLINE_CSV)) }; }
+      function parseCsv(csvText){
+        if (!csvText || typeof csvText !== "string") return [];
+        const trimmed = csvText.trim();
+        if (!trimmed) return [];
+
+        const lines = trimmed.split(/\r?\n/).filter(Boolean);
+        if (lines.length < 2) return [];
+
+        const headers = parseCsvLine(lines[0]);
+        if (!headers.length) return [];
+
+        return lines.slice(1).map(line => {
+          const cols = parseCsvLine(line);
+          const row = {};
+          headers.forEach((h,i) => row[h] = cols[i] ?? "");
+          return row;
+        });
+      }
+
+      function toNum(v, fallback = 0){
+        const n = Number(v);
+        return Number.isFinite(n) ? n : fallback;
+      }
+
+      function csvRowsToGeojson(rows){
+        const safeRows = Array.isArray(rows) ? rows : [];
+        return {
+          type: "FeatureCollection",
+          features: safeRows
+            .filter(r => r && r.latitude != null && r.longitude != null)
+            .map(r => ({
+              type: "Feature",
+              geometry: {
+                type: "Point",
+                coordinates: [toNum(r.longitude, NaN), toNum(r.latitude, NaN)]
+              },
+              properties: { ...r }
+            }))
+            .filter(f => Number.isFinite(f.geometry.coordinates[0]) && Number.isFinite(f.geometry.coordinates[1]))
+        };
+      }
+
+      async function fetchFromNWSGeoJSON(){
+        if (!NWS_HOTSPOT_GEOJSON_URL) throw new Error("NWS hotspot fallback disabled");
+        const res = await fetch(NWS_HOTSPOT_GEOJSON_URL, { cache: "no-store" });
+        if (!res.ok) throw new Error(`NWS hotspots status ${res.status}`);
+        const data = await res.json();
+        if (!data?.features || !Array.isArray(data.features)) throw new Error("NWS hotspots invalid");
+        return { source: "nws", geojson: data };
+      }
+
+      async function fetchFromLocalCSV(){
+        const res = await fetch(LOCAL_CSV_URL, { cache: "no-store" });
+        if (!res.ok) throw new Error(`Local CSV status ${res.status}`);
+        const text = await res.text();
+        return { source: "local-csv", geojson: csvRowsToGeojson(parseCsv(text)) };
+      }
+
+      function fetchFromInlineCSV(){
+        return { source: "inline-csv", geojson: csvRowsToGeojson(parseCsv(INLINE_CSV)) };
+      }
 
       async function fetchHotspots(){
-        const tryJson = (text) => { try { const geojson = JSON.parse(text); return geojson && Array.isArray(geojson.features) ? geojson : null; } catch (_) { return null; } };
+        const tryJson = (text) => {
+          try {
+            const geojson = JSON.parse(text);
+            return geojson && Array.isArray(geojson.features) ? geojson : null;
+          } catch (_) {
+            return null;
+          }
+        };
+
         try {
+          if (!FIRMS_URL) throw new Error("FIRMS URL disabled (configure proxy)");
           const res = await fetch(FIRMS_URL, { cache: "no-store" });
           if(!res.ok) throw new Error(`FIRMS status ${res.status}`);
+
           const text = await res.text();
           const geojson = tryJson(text);
-          if (geojson) { setBadge("status-firms","ok","FIRMS ✅"); setBadge("status-hotspots","ok","Hotspots: FIRMS"); return { source: "firms", geojson }; }
+
+          if (geojson) {
+            setBadge("status-firms","ok","FIRMS ✅");
+            setBadge("status-hotspots","ok","Hotspots: FIRMS");
+            markHotspotMeta("firms");
+            return { source: "firms", geojson };
+          }
+
           const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
           if (lines.length > 1) {
             const headers = parseCsvLine(lines[0]);
-            const features = lines.slice(1).map(line => { const values = parseCsvLine(line); const obj = {}; headers.forEach((h, i) => obj[h] = values[i] ?? ""); return { type: "Feature", geometry: { type: "Point", coordinates: [toNum(obj.longitude, NaN), toNum(obj.latitude, NaN)] }, properties: obj }; }).filter(f => Number.isFinite(f.geometry.coordinates[0]) && Number.isFinite(f.geometry.coordinates[1]));
-            setBadge("status-firms","ok","FIRMS ✅"); setBadge("status-hotspots","ok","Hotspots: FIRMS CSV"); return { source: "firms-csv", geojson: { type: "FeatureCollection", features } };
+            const features = lines.slice(1).map(line => {
+              const values = parseCsvLine(line);
+              const obj = {};
+              headers.forEach((h, i) => obj[h] = values[i] ?? "");
+              return {
+                type: "Feature",
+                geometry: {
+                  type: "Point",
+                  coordinates: [toNum(obj.longitude, NaN), toNum(obj.latitude, NaN)]
+                },
+                properties: obj
+              };
+            }).filter(f => Number.isFinite(f.geometry.coordinates[0]) && Number.isFinite(f.geometry.coordinates[1]));
+
+            setBadge("status-firms","ok","FIRMS ✅");
+            setBadge("status-hotspots","ok","Hotspots: FIRMS CSV");
+            markHotspotMeta("firms-csv");
+            return { source: "firms-csv", geojson: { type: "FeatureCollection", features } };
           }
+
           throw new Error("FIRMS returned no usable features");
         } catch (firmsErr) {
-          console.warn("FIRMS failed, using fallback chain:", firmsErr);
+          console.warn("FIRMS unavailable; using fallback chain:", firmsErr?.message || firmsErr);
           setBadge("status-firms","warn","FIRMS ⚠️");
         }
-        try { const nws = await fetchFromNWSGeoJSON(); setBadge("status-hotspots","warn","Hotspots: NWS fallback"); return nws; } catch (e) { console.warn("NWS hotspot fallback failed:", e); }
-        try { const local = await fetchFromLocalCSV(); setBadge("status-hotspots","warn","Hotspots: local CSV fallback"); return local; } catch (e) { console.warn("Local CSV fallback failed:", e); }
-        const inline = fetchFromInlineCSV(); setBadge("status-hotspots","warn","Hotspots: inline fallback"); return inline;
+
+        try {
+          const nws = await fetchFromNWSGeoJSON();
+          setBadge("status-hotspots","warn","Hotspots: NWS fallback");
+          markHotspotMeta("nws-fallback");
+          return nws;
+        } catch (e) {
+          console.warn("NWS hotspot fallback failed:", e?.message || e);
+        }
+
+        try {
+          const local = await fetchFromLocalCSV();
+          setBadge("status-hotspots","warn","Hotspots: local CSV fallback");
+          markHotspotMeta("local-csv-fallback");
+          return local;
+        } catch (e) {
+          console.warn("Local CSV fallback failed:", e?.message || e);
+        }
+
+        if (USE_INLINE_FALLBACK) {
+          const inline = fetchFromInlineCSV();
+          setBadge("status-hotspots","warn","Hotspots: inline fallback");
+          markHotspotMeta("inline-fallback");
+          return inline;
+        }
+
+        setBadge("status-hotspots","err","Hotspots unavailable");
+        markHotspotMeta("unavailable");
+        return { source: "none", geojson: { type:"FeatureCollection", features:[] } };
       }
 
       async function fetchNOAAHourly(lat, lon){
         try {
           const p = await fetch(`https://api.weather.gov/points/${lat},${lon}`, { headers: NOAA_HEADERS });
           if(!p.ok) throw new Error(`points status ${p.status}`);
+
           const meta = await p.json();
-          const hourlyUrl = meta?.properties?.forecastHourly; if(!hourlyUrl) throw new Error("missing forecastHourly");
-          const f = await fetch(hourlyUrl, { cache: "no-store", headers: NOAA_HEADERS }); if(!f.ok) throw new Error(`hourly status ${f.status}`);
-          const hourly = await f.json(); setBadge("status-noaa","ok","NOAA ✅"); return hourly?.properties?.periods?.[0] ?? null;
-        } catch(e) { console.warn("NOAA fetch failed", e); setBadge("status-noaa","warn","NOAA ⚠️"); return null; }
+          const hourlyUrl = meta?.properties?.forecastHourly;
+          if(!hourlyUrl) throw new Error("missing forecastHourly");
+
+          const f = await fetch(hourlyUrl, { cache: "no-store", headers: NOAA_HEADERS });
+          if(!f.ok) throw new Error(`hourly status ${f.status}`);
+
+          const hourly = await f.json();
+          setBadge("status-noaa","ok","NOAA ✅");
+          return hourly?.properties?.periods?.[0] ?? null;
+        } catch(e) {
+          console.warn("NOAA fetch failed", e);
+          setBadge("status-noaa","warn","NOAA ⚠️");
+          return null;
+        }
       }
 
-      function renderCardsStart(){ const cards = document.getElementById("cards"); if (cards) cards.innerHTML = ""; }
-      function renderCountyCard({ name }, now, hotspotCount){ const cards = document.getElementById("cards"); if (!cards) return; const el = document.createElement("article"); el.className = "card"; const summary = now ? `${now.temperature}\u00B0F • ${now.relativeHumidity?.value ?? "N/A"}% RH • ${now.windSpeed ?? "N/A"} ${now.windDirection ?? ""}` : "N/A"; const label = now?.shortForecast ?? "N/A"; el.innerHTML = `<h3>${label.includes("Thunder") ? "⛈️" : "🌤️"} ${name}</h3><div class="dim">Class: ${label}</div><div class="metric">Wx: ${summary}</div><div class="metric">Hotspots (≤ ${BUFFER_KM} km): <strong>${hotspotCount}</strong></div>`; cards.appendChild(el); }
+      function renderCardsStart(){
+        const cards = document.getElementById("cards");
+        if (cards) cards.innerHTML = "";
+      }
+
+      function renderCountyCard({ name }, now, hotspotCount){
+        const cards = document.getElementById("cards");
+        if (!cards) return;
+
+        const el = document.createElement("article");
+        el.className = "card";
+        const summary = now
+          ? `${now.temperature}°F • ${now.relativeHumidity?.value ?? "N/A"}% RH • ${now.windSpeed ?? "N/A"} ${now.windDirection ?? ""}`
+          : "N/A";
+        const label = now?.shortForecast ?? "N/A";
+
+        el.innerHTML = `
+          <h3>${label.includes("Thunder") ? "⛈️" : "🌤️"} ${name}</h3>
+          <div class="dim">Class: ${label}</div>
+          <div class="metric">Wx: ${summary}</div>
+          <div class="metric">Hotspots (≤ ${BUFFER_KM} km): <strong>${hotspotCount}</strong></div>
+        `;
+        cards.appendChild(el);
+      }
 
       function drawBuffersAndCenters(){
         layers.buffers.clearLayers();
         layers.centers.clearLayers();
         const circles = [];
+
         for(const c of COUNTIES){
           const circle = getCountyBuffer(c);
           L.geoJSON(circle, { style: { color:"#22c55e", weight:1, fillOpacity:0.08 } }).addTo(layers.buffers);
           circles.push(circle);
-          L.circleMarker([c.lat,c.lon], { radius:5, color:"#0ea5e9", fillColor:"#0ea5e9", fillOpacity:.9 }).bindTooltip(c.name).addTo(layers.centers);
+          L.circleMarker([c.lat,c.lon], {
+            radius:5, color:"#0ea5e9", fillColor:"#0ea5e9", fillOpacity:.9
+          }).bindTooltip(c.name).addTo(layers.centers);
         }
+
         const bbox = turf.bbox(turf.featureCollection(circles));
         map.fitBounds([[bbox[1], bbox[0]], [bbox[3], bbox[2]]], { padding:[30,30] });
       }
@@ -249,10 +476,13 @@
       function drawHotspots(geojson, sourceLabel){
         layers.hotspots.clearLayers();
         if(!geojson?.features?.length) return;
+
         L.geoJSON(geojson, {
           filter: f => f && f.geometry && f.geometry.type === "Point",
           pointToLayer: (f, latlng) => {
-            const marker = L.circleMarker(latlng, { radius:4, color:"#ef4444", fillColor:"#ef4444", fillOpacity:.85, weight:1 });
+            const marker = L.circleMarker(latlng, {
+              radius:4, color:"#ef4444", fillColor:"#ef4444", fillOpacity:.85, weight:1
+            });
             const props = f.properties || {};
             const time = props.acq_date ? `${props.acq_date} ${props.acq_time ?? ""}` : (props.time ?? "");
             const instrument = props.instrument || props.satellite || "";
@@ -267,26 +497,47 @@
         renderCardsStart();
         const hotspotResult = await fetchHotspots();
         const geojson = hotspotResult?.geojson ?? { type:"FeatureCollection", features:[] };
+        renderHotspotMeta();
         drawHotspots(geojson, hotspotResult?.source || "unknown");
         drawBuffersAndCenters();
+
         const features = geojson.features ?? [];
         const results = await Promise.all(COUNTIES.map(async (county) => {
           const now = await fetchNOAAHourly(county.lat, county.lon);
           const buffer = getCountyBuffer(county);
-          const count = features.reduce((acc, f) => { if(!f.geometry || f.geometry.type !== "Point") return acc; const [x,y] = f.geometry.coordinates; return acc + (turf.booleanPointInPolygon(turf.point([x,y]), buffer) ? 1 : 0); },0);
+          const count = features.reduce((acc, f) => {
+            if(!f.geometry || f.geometry.type !== "Point") return acc;
+            const [x,y] = f.geometry.coordinates;
+            return acc + (turf.booleanPointInPolygon(turf.point([x,y]), buffer) ? 1 : 0);
+          },0);
           return { county, now, count };
         }));
+
         results.forEach(r => renderCountyCard(r.county, r.now, r.count));
+
         const names = [...document.querySelectorAll("#cards .card h3")].map(h => h.textContent);
-        if (!names.some(t => t.includes("Brunswick")) || !names.some(t => t.includes("Greensville"))) showAlert("Self-check failed: Brunswick and/or Greensville not rendered."); else { const box = document.getElementById("alerts"); if (box) box.hidden = true; }
+        if (!names.some(t => t.includes("Brunswick")) || !names.some(t => t.includes("Greensville"))) {
+          showAlert("Self-check failed: Brunswick and/or Greensville not rendered.");
+        } else {
+          hideAlert();
+        }
       }
 
-      window.addEventListener("DOMContentLoaded", () => { initMap(); refresh(); setInterval(refresh, CONFIG.REFRESH_MS); });
+      window.addEventListener("DOMContentLoaded", () => {
+        initMap();
+        refresh();
+        setInterval(refresh, CONFIG.REFRESH_MS);
+      });
     </script>
 
     <script>
       const toggle = document.getElementById("themeToggle");
-      if (toggle) toggle.addEventListener("click", () => { document.body.classList.toggle("dark"); toggle.textContent = document.body.classList.contains("dark") ? "☀️ Light" : "🌙 Dark"; });
+      if (toggle) {
+        toggle.addEventListener("click", () => {
+          document.body.classList.toggle("dark");
+          toggle.textContent = document.body.classList.contains("dark") ? "☀️ Light" : "🌙 Dark";
+        });
+      }
     </script>
   </body>
 </html>
