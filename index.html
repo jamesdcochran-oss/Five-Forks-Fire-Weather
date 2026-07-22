@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Five Forks Fire Weather — Single File</title>
+    <link rel="icon" href="data:," />
 
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
@@ -123,14 +124,14 @@
         <span id="status-hotspots" class="badge" title="Chosen hotspot source">Hotspots ⏳</span>
         <span id="status-tiles" class="badge" title="Map tiles (OSM)">Tiles ⏳</span>
       </div>
-      <small id="footer-meta">Data: NOAA NWS & NASA FIRMS · Auto-refresh every 15 minutes</small>
+      <small id="footer-meta">Data: NOAA NWS & NASA FIRMS · Auto-refresh every 60 minutes</small>
     </footer>
 
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
 
     <script>
-      const CONFIG = { BUFFER_KM: 30, REFRESH_MS: 15 * 60 * 1000 };
+      const CONFIG = { BUFFER_KM: 30, REFRESH_MS: 60 * 60 * 1000 };
       const COUNTIES = [
         { name: "Amelia", lat: 37.342, lon: -77.980 },
         { name: "Nottoway", lat: 37.142, lon: -78.089 },
@@ -142,20 +143,15 @@
 
       const BUFFER_KM = CONFIG.BUFFER_KM;
 
-      // Direct FIRMS browser calls are blocked by CORS on GitHub Pages.
-      // Set this to your Cloudflare Worker URL when ready.
-      const FIRMS_URL = "";
+      // Live proxy URL (Cloudflare Worker)
+      const FIRMS_URL = "https://divine-moon-5262.jamesdcochran.workers.dev";
 
-      // Disabled because previous endpoint returned 404.
+      // Keep disabled unless you add a verified fallback endpoint
       const NWS_HOTSPOT_GEOJSON_URL = "";
 
       const LOCAL_CSV_URL = "./hotspots.csv";
-      const USE_INLINE_FALLBACK = true;
-
-      const INLINE_CSV = `latitude,longitude,bright_ti4,scan,track,acq_date,acq_time,satellite,instrument,confidence,version,bright_ti5,frp,daynight
-37.18095,-77.4473,317.15,0.39,0.36,2026-07-20,709,N20,VIIRS,n,2.0NRT,292.83,1.6,N
-37.32526,-77.80234,310.35,0.39,0.36,2026-07-20,709,N20,VIIRS,n,2.0NRT,290.72,0.77,N
-37.47763,-78.43346,302.49,0.38,0.36,2026-07-20,709,N20,VIIRS,n,2.0NRT,291.34,0.64,N`;
+      const USE_INLINE_FALLBACK = false;
+      const INLINE_CSV = "";
 
       const NOAA_HEADERS = {
         Accept: "application/geo+json",
@@ -245,7 +241,6 @@
         const out = [];
         let cur = "";
         let inQuotes = false;
-
         for (let i = 0; i < line.length; i++) {
           const ch = line[i];
           if (ch === '"') {
@@ -266,13 +261,10 @@
         if (!csvText || typeof csvText !== "string") return [];
         const trimmed = csvText.trim();
         if (!trimmed) return [];
-
         const lines = trimmed.split(/\r?\n/).filter(Boolean);
         if (lines.length < 2) return [];
-
         const headers = parseCsvLine(lines[0]);
         if (!headers.length) return [];
-
         return lines.slice(1).map(line => {
           const cols = parseCsvLine(line);
           const row = {};
@@ -335,7 +327,6 @@
         };
 
         try {
-          if (!FIRMS_URL) throw new Error("FIRMS URL disabled (configure proxy)");
           const res = await fetch(FIRMS_URL, { cache: "no-store" });
           if(!res.ok) throw new Error(`FIRMS status ${res.status}`);
 
@@ -484,10 +475,14 @@
               radius:4, color:"#ef4444", fillColor:"#ef4444", fillOpacity:.85, weight:1
             });
             const props = f.properties || {};
-            const time = props.acq_date ? `${props.acq_date} ${props.acq_time ?? ""}` : (props.time ?? "");
+            const acqDate = props.acq_date || "";
+            const acqDigits = String(props.acq_time ?? "").replace(/\D/g, "");
+            const acqTimeRaw = acqDigits ? acqDigits.padStart(4, "0").slice(-4) : "";
+            const acqTime = acqTimeRaw ? `${acqTimeRaw.slice(0,2)}:${acqTimeRaw.slice(2,4)} UTC` : "";
+            const time = acqDate ? `${acqDate} ${acqTime}`.trim() : (props.time ?? "unknown");
             const instrument = props.instrument || props.satellite || "";
             const confidence = props.confidence ? `• ${props.confidence}` : (props.confidence_level ? `• ${props.confidence_level}` : "");
-            marker.bindPopup(`<strong>🔥 Active fire</strong><br>Source: ${sourceLabel}<br>${time}<br>${instrument} ${confidence}`.trim());
+            marker.bindPopup(`<strong>🔥 Target heat signature</strong><br>Source: ${sourceLabel}<br>Observed: ${time || "unknown"}<br>${instrument} ${confidence}`.trim());
             return marker;
           }
         }).addTo(layers.hotspots);
